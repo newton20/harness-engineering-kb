@@ -1,0 +1,173 @@
+---
+title: Practical Best Practices
+type: wiki
+tags:
+  - best-practices
+  - prompt-engineering
+  - sycophancy
+  - progressive-disclosure
+  - model-generations
+  - harness-engineering
+  - multi-agent
+  - git
+  - testing
+sources:
+  - raw/systematicls-2028814227004395561.md
+  - raw/anthropic-com-engineering-effective-harnesses-for-long-running-agents.md
+  - raw/anthropic-com-engineering-harness-design-long-running-apps.md
+  - raw/Hxlfed14-2028116431876116660.md
+  - raw/openai-com-index-harness-engineering.md
+  - raw/servasyy_ai-2042951017462169812.md
+  - raw/simonwillison-net-2025-sep-30-designing-agentic-loops.md
+source_count: 7
+status: draft
+last_compiled: 2026-04-13
+---
+
+# Practical Best Practices
+
+This article collects concrete, actionable practices for harness engineering -- the kind of hard-won lessons that emerge from building and shipping agent systems in production. The evidence comes from Anthropic's long-running agent work, OpenAI's fully agent-generated codebase, @systematicls's operator-level experience, and comparative analysis of multi-agent delegation architectures.
+
+## Less Is More
+
+@systematicls articulates a foundational principle: less is more. Strip dependencies, reduce complexity, give agents only what they need. [Source: raw/systematicls-2028814227004395561.md] Every unnecessary piece of context, every redundant tool, every extraneous instruction is a potential source of confusion and a drain on the model's finite attention.
+
+This is not minimalism for aesthetic reasons. It is a performance optimization. "You don't need the latest agentic harnesses, you don't need to install a million packages and you absolutely do not need to feel the need to read a million things to stay competitive. In fact, your enthusiasm is likely doing more harm than good." [Source: raw/systematicls-2028814227004395561.md]
+
+The pattern is consistent across top teams: Manus has rewritten their framework five times, each time removing things. Anthropic designs Claude Code's scaffold to shrink as models improve. Replit went from one agent to three but each individual agent got simpler. Over-engineering is the default failure mode. [Source: raw/Hxlfed14-2028116431876116660.md]
+
+## Separate Research from Implementation
+
+A common failure mode is giving an agent a vague, compound instruction: "build an auth system." The agent has to simultaneously research options and implement, leading to shallow research and confused implementation. [Source: raw/systematicls-2028814227004395561.md]
+
+The fix is to decompose into distinct phases:
+
+- **Research phase:** "Investigate JWT auth approaches. Report findings on bcrypt cost factors, token expiration strategies, and refresh token patterns."
+- **Implementation phase:** "Implement JWT auth with bcrypt-12 cost factor, 15-minute access tokens, 7-day refresh tokens, using the jsonwebtoken library."
+
+The implementation instruction is specific because the research phase already resolved the ambiguity. If you do not know the implementation details, create a research task first, either decide yourself or get an agent to decide, then get another agent with a fresh context to implement. [Source: raw/systematicls-2028814227004395561.md]
+
+## Handle Sycophancy
+
+Models have a well-documented tendency toward sycophancy -- telling the user (or the harness) what it thinks they want to hear. "If you give it an instruction to add 'happy' to every 3 words it's going to do its best to follow that instruction... Its willingness to follow is precisely what makes it such a fun product to use." [Source: raw/systematicls-2028814227004395561.md]
+
+**Use neutral prompts.** Instead of "find bugs in this code" (which primes the model to find bugs whether they exist or not), use "search through the database, try to follow along with the logic of each component, and report back all findings." A neutral prompt sometimes surfaces bugs and sometimes just matter-of-factly states how the code runs, without biasing the agent toward any conclusion. [Source: raw/systematicls-2028814227004395561.md]
+
+**Use adversarial agent setups.** @systematicls describes a three-agent pattern: a bug-finder agent that aggressively identifies all possible bugs (the superset), an adversarial agent that tries to disprove each bug (the subset), and a referee agent that scores both. "Whatever the referee says is the truth, I inspect to make sure it's the truth. For the most part this is frighteningly high fidelity." [Source: raw/systematicls-2028814227004395561.md]
+
+Anthropic's work confirms the pattern from a different angle: self-evaluation fails because models confidently praise their own work. A separate evaluator agent is tractable to tune into a skeptical critic. [Source: raw/anthropic-com-engineering-harness-design-long-running-apps.md]
+
+## Progressive Disclosure
+
+Agents work best when they discover context incrementally rather than receiving everything at once. Anthropic formalized this with Agent Skills: Claude reads skill files that reference other files that the model can read recursively. "Over the course of a year Claude went from not really being able to build its own context, to being able to do nested search across several layers of files." [Source: raw/Hxlfed14-2028116431876116660.md]
+
+The quantitative case is strong: Claude-Mem documentation shows static loading injects 25,000 tokens at 0.8% efficiency (one relevant observation in noise), while progressive disclosure uses 955 tokens at 100% efficiency -- a 26x improvement. [Source: raw/Hxlfed14-2028116431876116660.md]
+
+Dex Horthy (creator of the "12 Factor Agents" methodology) puts the threshold at 40% of the model's input capacity: push past that and you enter the "dumb zone" where signal-to-noise degrades and agents start making mistakes that look like reasoning failures but are actually information overload. [Source: raw/Hxlfed14-2028116431876116660.md]
+
+## Every New Model Generation Forces Rethinking
+
+Harness components encode assumptions about model limitations. @systematicls warns: "the most important principle to hold is the realization that every new generation of agents will force you to rethink what is optimal, which is why less is more." [Source: raw/systematicls-2028814227004395561.md]
+
+Anthropic's experience confirms this concretely. When Opus 4.6 dropped, they were able to remove the sprint construct from their long-running harness entirely because the model could natively handle coherent work without that decomposition. The evaluator's role changed too -- tasks that used to need the evaluator's check were now within what the generator handled well on its own. [Source: raw/anthropic-com-engineering-harness-design-long-running-apps.md]
+
+The principle: "every component in a harness encodes an assumption about what the model can't do on its own, and those assumptions are worth stress testing, both because they may be incorrect, and because they can quickly go stale as models improve." [Source: raw/anthropic-com-engineering-harness-design-long-running-apps.md]
+
+## Find the Simplest Solution Possible
+
+Anthropic's guidance is direct: "Find the simplest solution possible, only increase complexity when needed." [Source: raw/anthropic-com-engineering-harness-design-long-running-apps.md] When Anthropic attempted to simplify their harness radically all at once, they could not replicate performance and could not tell which pieces were load-bearing. They moved to a more methodical approach: removing one component at a time and reviewing the impact. [Source: raw/anthropic-com-engineering-harness-design-long-running-apps.md]
+
+If your agent harness is getting more complex while models get better, something is wrong. [Source: raw/Hxlfed14-2028116431876116660.md]
+
+## Git as Recovery Mechanism
+
+For coding agents, git serves as a critical safety net. Anthropic's long-running agent harness uses git commits at meaningful checkpoints. If the agent goes down a bad path, the harness (or the user) can revert to a known-good state. The commit history provides an audit trail of what the agent did and why. [Source: raw/anthropic-com-engineering-effective-harnesses-for-long-running-agents.md]
+
+OpenAI's fully agent-generated codebase takes this further: agents use standard development tools directly (gh, local scripts, repository-embedded skills) to gather context, open pull requests, respond to feedback, and often squash and merge their own PRs. The repository operates with minimal blocking merge gates and short-lived PRs. "In a system where agent throughput far exceeds human attention, corrections are cheap, and waiting is expensive." [Source: raw/openai-com-index-harness-engineering.md]
+
+## Feature Lists as JSON, Not Markdown
+
+Anthropic found that representing feature lists as JSON rather than markdown prevents the model from inappropriately modifying them. They use "strongly-worded instructions like 'It is unacceptable to remove or edit tests because this could lead to missing or buggy functionality.'" The model is less likely to inappropriately change or overwrite JSON files compared to markdown files. [Source: raw/anthropic-com-engineering-effective-harnesses-for-long-running-agents.md]
+
+## Browser Testing Dramatically Improves Performance
+
+Adding browser testing capabilities (Playwright, Puppeteer MCP) to coding agents catches bugs that are invisible from code alone. Anthropic found that Claude "did well at verifying features end-to-end once explicitly prompted to use browser automation tools and do all testing as a human user would." Screenshots taken through the Puppeteer MCP allowed the agent to identify and fix bugs not obvious from code alone. [Source: raw/anthropic-com-engineering-effective-harnesses-for-long-running-agents.md]
+
+OpenAI similarly wired the Chrome DevTools Protocol into the agent runtime and created skills for working with DOM snapshots, screenshots, and navigation, enabling Codex to reproduce bugs, validate fixes, and reason about UI behavior directly. [Source: raw/openai-com-index-harness-engineering.md]
+
+## Mitigating Unattended Execution Risk
+
+Simon Willison identified that agents are most productive when running unattended ("YOLO mode"), but this introduces three distinct risk categories: bad shell commands that damage the local environment, exfiltration attacks where injected instructions cause the agent to leak data, and proxy attacks where the agent is tricked into taking actions on behalf of an attacker. His recommended mitigations are layered: sandbox the agent (Docker containers, Apple containers), run on someone else's computer (GitHub Codespaces or similar ephemeral environments), or accept the risk with eyes open. [Source: raw/simonwillison-net-2025-sep-30-designing-agentic-loops.md] For credential scoping specifically, Willison recommends creating dedicated organizations with hard budget limits -- for example, a Fly.io org with a $5 spending cap -- so that even if an agent goes off the rails, the blast radius is financially bounded. [Source: raw/simonwillison-net-2025-sep-30-designing-agentic-loops.md] This complements the git-as-recovery-mechanism approach: git handles rollback after mistakes, while sandboxing and credential scoping prevent the mistakes from having irreversible consequences in the first place.
+
+## AGENTS.md as TOC, Not Encyclopedia
+
+OpenAI learned that the "one big AGENTS.md" approach fails: context is a scarce resource that crowds out the task, too much guidance becomes non-guidance, it rots instantly, and it is hard to verify. [Source: raw/openai-com-index-harness-engineering.md]
+
+Instead, they treat AGENTS.md as the table of contents -- roughly 100 lines injected into context as a map with pointers to deeper sources of truth in a structured docs/ directory. Design docs, execution plans, product specs, and references all live in version-controlled files the agent can discover via progressive disclosure. [Source: raw/openai-com-index-harness-engineering.md]
+
+This mirrors @systematicls's advice: "treat your CLAUDE.md as a logical, nested directory of where to find context given a scenario and an outcome. It should be as barebones as possible, and only contain the IF-ELSE of where to go to seek the context." [Source: raw/systematicls-2028814227004395561.md]
+
+OpenAI enforces this mechanically with dedicated linters and CI jobs that validate the knowledge base is up to date, cross-linked, and structured correctly. A recurring "doc-gardening" agent scans for stale documentation and opens fix-up PRs. [Source: raw/openai-com-index-harness-engineering.md]
+
+## Multi-Agent Delegation Patterns: Hermes vs. OpenClaw
+
+@servasyy_ai provides a deep technical comparison of two multi-agent delegation architectures, representing opposite ends of the design space: [Source: raw/servasyy_ai-2042951017462169812.md]
+
+**Hermes (delegate_task):** A synchronous "contractor-subcontractor" model. The parent agent dispatches tasks to child agents, then blocks until all results return. Child agents' intermediate reasoning never enters the parent's context window -- only a compressed summary returns. This achieves zero context inflation but means the parent cannot respond to new demands while children run. [Source: raw/servasyy_ai-2042951017462169812.md]
+- Max 3 concurrent children, max depth of 2 (no grandchildren)
+- Child agents are stripped of delegate_task, clarify, memory, execute_code, and send_message tools to prevent escaping the sandbox
+- No timeout mechanism -- children are bounded only by iteration count (default 50)
+
+**OpenClaw (subagent system):** An asynchronous event-driven "orchestra" model. The parent defines a global topology, then child agents run asynchronously with results pushed back via events. The parent can send "steer" messages to redirect running children (rate-limited to once per 2 seconds, max 4000 characters). [Source: raw/servasyy_ai-2042951017462169812.md]
+- Max 8 concurrent agents, 5 active children per agent, configurable nesting depth
+- Supports external agents (Claude Code, Codex) as children via ACP
+- Timeout control (default 300 seconds), persistent run records, session recovery
+- Tradeoff: announce pushes inject child results into parent context (~12% more tokens for same 3-task scenario)
+
+**Choosing between them:** Hermes is optimal for parallel processing of 3 independent tasks with clean isolation and zero context pollution. OpenClaw is necessary when tasks require mid-flight direction changes, timeout control, external agent integration, or more than 3 parallel workers. The recommended hybrid: use OpenClaw's async orchestration for complex workflows with Hermes-style delegate calls embedded for isolated parallel subtasks. [Source: raw/servasyy_ai-2042951017462169812.md]
+
+## Entropy and Garbage Collection
+
+OpenAI found that full agent autonomy introduces entropy: agents replicate patterns that already exist in the repository, including suboptimal ones. Initially, "our team used to spend every Friday (20% of the week) cleaning up 'AI slop.'" [Source: raw/openai-com-index-harness-engineering.md]
+
+The fix: encode "golden principles" directly into the repository and build recurring cleanup processes. Background Codex tasks scan for deviations, update quality grades, and open targeted refactoring PRs on a regular cadence. "This functions like garbage collection. Technical debt is like a high-interest loan: it's almost always better to pay it down continuously in small increments than to let it compound." [Source: raw/openai-com-index-harness-engineering.md]
+
+## Summary of Principles
+
+1. Strip everything that is not load-bearing [Source: raw/systematicls-2028814227004395561.md]
+2. Separate research from implementation [Source: raw/systematicls-2028814227004395561.md]
+3. Design around sycophancy with neutral prompts and adversarial setups [Source: raw/systematicls-2028814227004395561.md]
+4. Let agents discover context progressively, not all at once [Source: raw/Hxlfed14-2028116431876116660.md]
+5. Revisit the entire harness with each new model generation [Source: raw/anthropic-com-engineering-harness-design-long-running-apps.md]
+6. Default to the simplest solution that works [Source: raw/anthropic-com-engineering-harness-design-long-running-apps.md]
+7. Use JSON for data the model should not edit, markdown for content it should [Source: raw/anthropic-com-engineering-effective-harnesses-for-long-running-agents.md]
+8. Leverage git for recovery, not just version control [Source: raw/anthropic-com-engineering-effective-harnesses-for-long-running-agents.md]
+9. Add browser testing to close the visual feedback loop [Source: raw/anthropic-com-engineering-effective-harnesses-for-long-running-agents.md]
+10. Treat AGENTS.md/CLAUDE.md as a table of contents, not an encyclopedia [Source: raw/openai-com-index-harness-engineering.md]
+11. Build garbage collection for agent-generated codebases [Source: raw/openai-com-index-harness-engineering.md]
+
+## Related
+
+- [Agent Memory and Context Management](agent-memory-and-context-management.md) -- Context curation, CLAUDE.md as directory, compaction handling
+- [Tool Design Patterns](tool-design-patterns.md) -- Progressive disclosure, fewer tools, lazy loading
+- [Autoresearch and Self-Improvement](autoresearch-and-self-improvement.md) -- Adversarial evaluation, GAN-inspired patterns, self-improvement loops
+- [Long-Running Agent Harnesses](long-running-agent-harnesses.md) -- Initializer agents, incremental progress, context resets
+- [Claude Code Architecture](claude-code-architecture.md) -- System prompt layering, tool result injection, progressive disclosure
+- [OpenAI Codex Harness](openai-codex-harness.md) -- AGENTS.md as TOC, repository as system of record, garbage collection
+
+## Open Questions
+
+- At what point does harness simplification go too far? Anthropic found that radical simplification all at once failed -- they could not determine which pieces were load-bearing. Methodical one-at-a-time removal was necessary. [Source: raw/anthropic-com-engineering-harness-design-long-running-apps.md]
+- How should the Hermes vs. OpenClaw delegation tradeoff evolve as models get better at managing their own context and sub-tasks? [Source: raw/servasyy_ai-2042951017462169812.md]
+- OpenAI found conventional merge gates became counterproductive at high agent throughput. What new quality assurance patterns replace traditional code review in fully agent-generated systems? [Source: raw/openai-com-index-harness-engineering.md]
+- How does the "doc-gardening" agent approach scale? Is there a risk of agents maintaining documentation that drifts from unstated human preferences?
+
+## Sources
+
+- [raw/systematicls-2028814227004395561.md](../raw/systematicls-2028814227004395561.md) -- @systematicls on less is more, context is everything, separating research from implementation, handling sycophancy with neutral prompts and adversarial agents, CLAUDE.md as directory, iterative rule/skill building.
+- [raw/anthropic-com-engineering-effective-harnesses-for-long-running-agents.md](../raw/anthropic-com-engineering-effective-harnesses-for-long-running-agents.md) -- Anthropic on initializer agents, incremental progress, feature lists as JSON, git as recovery, browser testing with Puppeteer MCP, progress files for session bridging.
+- [raw/anthropic-com-engineering-harness-design-long-running-apps.md](../raw/anthropic-com-engineering-harness-design-long-running-apps.md) -- Anthropic's Prithvi Rajasekaran on GAN-inspired evaluators, simplest solution principle, harness simplification methodology, model generation rethinking (Opus 4.5 to 4.6 transition).
+- [raw/Hxlfed14-2028116431876116660.md](../raw/Hxlfed14-2028116431876116660.md) -- Himanshu's survey of harness architectures. Progressive disclosure quantified (26x efficiency gain), CORE-Bench scaffold comparison, Vercel tool deletion, 12 Factor Agents 40% threshold.
+- [raw/openai-com-index-harness-engineering.md](../raw/openai-com-index-harness-engineering.md) -- OpenAI's Ryan Lopopolo on building a million-line codebase with zero manually-written code. AGENTS.md as TOC, repository as system of record, entropy and garbage collection, agent legibility, throughput changing merge philosophy.
+- [raw/servasyy_ai-2042951017462169812.md](../raw/servasyy_ai-2042951017462169812.md) -- @servasyy_ai deep technical comparison of Hermes delegate_task (synchronous, isolated, token-efficient) vs. OpenClaw subagent system (asynchronous, event-driven, steerable). Architecture tradeoffs, hybrid patterns.
+- [raw/simonwillison-net-2025-sep-30-designing-agentic-loops.md](../raw/simonwillison-net-2025-sep-30-designing-agentic-loops.md) -- Simon Willison, Sep 2025. YOLO mode risk taxonomy (bad commands, exfiltration, proxy attacks), sandbox mitigations, tightly scoped credentials with budget limits.

@@ -1,0 +1,188 @@
+{
+  "https://x.com/garrytan/status/2042925773300908103?s=20": {
+    "status": "fetched",
+    "file": "raw/garrytan-2042925773300908103.md",
+    "type": "x_article",
+    "fetched_at": "2026-04-13T08:06:10.649Z"
+  },
+  "https://x.com/himanshustwts/status/2038924027411222533?s=20": {
+    "status": "fetched",
+    "file": "raw/himanshustwts-2038924027411222533.md",
+    "type": "tweet",
+    "credits_used": 1,
+    "links_found": [],
+    "fetched_at": "2026-04-13T08:03:07.283Z"
+  },
+  "https://x.com/hwchase17/status/2040467997022884194?s=20": {
+    "status": "fetched",
+    "file": "raw/hwchase17-2040467997022884194.md",
+    "type": "x_article",
+    "fetched_at": "2026-04-13T08:06:46.819Z"
+  },
+  "https://x.com/hwchase17/status/2042978500567609738?s=20": {
+    "status": "fetched",
+    "file": "raw/hwchase17-2042978500567609738.md",
+    "type": "x_article",
+    "fetched_at": "2026-04-13T08:06:58.340Z"
+  },
+  "https://x.com/sarahwooders/status/2040121230473457921?s=20": {
+    "status": "fetched",
+    "file": "raw/sarahwooders-2040121230473457921.md",
+    "type": "x_article",
+    "fetched_at": "2026-04-13T08:08:32.512Z"
+  },
+  "https://x.com/servasyy_ai/status/2042951017462169812?s=20": {
+    "status": "fetched",
+    "file": "raw/servasyy_ai-2042951017462169812.md",
+    "type": "x_article",
+    "fetched_at": "2026-04-13T08:09:40.966Z"
+  },
+  "https://x.com/0xblacklight/status/2036534699582255329?s=20": {
+    "status": "fetched",
+    "file": "raw/0xblacklight-2036534699582255329.md",
+    "type": "tweet",
+    "credits_used": 1,
+    "links_found": [],
+    "fetched_at": "2026-04-13T08:03:16.277Z"
+  },
+  "https://x.com/gakonst/status/2036560009128194052?s=20": {
+    "status": "fetched",
+    "file": "raw/gakonst-2036560009128194052.md",
+    "type": "tweet",
+    "credits_used": 1,
+    "links_found": [],
+    "fetched_at": "2026-04-13T08:03:18.061Z"
+  },
+  "https://x.com/rohit4verse/status/2041548810804211936?s=20": {
+    "status": "fetched",
+    "file": "raw/rohit4verse-2041548810804211936.md",
+    "type": "x_article",
+    "fetched_at": "2026-04-13T08:11:10.027Z"
+  },
+  "https://x.com/trq212/status/2027463795355095314?s=20": {
+    "status": "fetched",
+    "file": "raw/trq212-2027463795355095314.md",
+    "type": "x_article",
+    "fetched_at": "2026-04-13T08:11:55.710Z"
+  },
+  "https://x.com/idoubicc/status/2039006326882546141?s=20": {
+    "status": "fetched",
+    "file": "raw/idoubicc-2039006326882546141.md",
+    "type": "tweet",
+    "credits_used": 1,
+    "links_found": [
+      "https://github.com/shipany-ai/open-agent-sdk"
+    ],
+    "fetched_at": "2026-04-13T08:03:24.195Z"
+  },
+  "https://x.com/YukerX/status/2038959908968919297?s=20": {
+    "status": "fetched",
+    "file": "raw/YukerX-2038959908968919297.md",
+    "type": "x_article",
+    "fetched_at": "2026-04-13T08:13:08.110Z"
+  },
+  "https://www.anthropic.com/engineering/harness-design-long-running-apps": {
+    "status": "fetched",
+    "file": "raw/anthropic-com-engineering-harness-design-long-running-apps.md",
+    "type": "article",
+    "fetched_at": "2026-04-13T08:03:27.016Z"
+  },
+  "https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents": {
+    "status": "fetched",
+    "file": "raw/anthropic-com-engineering-effective-harnesses-for-long-running-agents.md",
+    "type": "article",
+    "fetched_at": "2026-04-13T08:03:27.837Z"
+  },
+  "https://www.anthropic.com/engineering/claude-code-auto-mode": {
+    "status": "fetched",
+    "file": "raw/anthropic-com-engineering-claude-code-auto-mode.md",
+    "type": "article",
+    "fetched_at": "2026-04-13T08:03:29.587Z"
+  },
+  "https://x.com/itsolelehmann/status/2033919415771713715?s=20": {
+    "status": "fetched",
+    "file": "raw/itsolelehmann-2033919415771713715.md",
+    "type": "x_article",
+    "fetched_at": "2026-04-13T08:15:32.463Z"
+  },
+  "https://x.com/JayScambler/status/2033971974284714355?s=20": {
+    "status": "fetched",
+    "file": "raw/JayScambler-2033971974284714355.md",
+    "type": "x_article",
+    "fetched_at": "2026-04-13T08:16:22.047Z"
+  },
+  "https://x.com/trq212/status/2033949937936085378?s=20": {
+    "status": "fetched",
+    "file": "raw/trq212-2033949937936085378.md",
+    "type": "x_article",
+    "fetched_at": "2026-04-13T08:17:16.586Z"
+  },
+  "https://x.com/akshay_pachaar/status/2033167408463069526?s=20": {
+    "status": "fetched",
+    "file": "raw/akshay_pachaar-2033167408463069526.md",
+    "type": "x_article",
+    "fetched_at": "2026-04-13T08:17:54.696Z"
+  },
+  "https://x.com/kevingu/status/2031889622385729730?s=20": {
+    "status": "fetched",
+    "file": "raw/kevingu-2031889622385729730.md",
+    "type": "x_article",
+    "fetched_at": "2026-04-13T08:18:38.644Z"
+  },
+  "https://x.com/Hxlfed14/status/2022984467380682856?s=20": {
+    "status": "fetched",
+    "file": "raw/Hxlfed14-2022984467380682856.md",
+    "type": "x_article",
+    "fetched_at": "2026-04-13T08:19:34.549Z"
+  },
+  "https://x.com/systematicls/status/2028814227004395561?s=20": {
+    "status": "fetched",
+    "file": "raw/systematicls-2028814227004395561.md",
+    "type": "x_article",
+    "fetched_at": "2026-04-13T08:21:30.363Z"
+  },
+  "https://x.com/Hxlfed14/status/2028116431876116660?s=20": {
+    "status": "fetched",
+    "file": "raw/Hxlfed14-2028116431876116660.md",
+    "type": "x_article",
+    "fetched_at": "2026-04-13T08:24:34.736Z"
+  },
+  "https://x.com/ArtemXTech/status/2028330693659332615?s=20": {
+    "status": "fetched",
+    "file": "raw/ArtemXTech-2028330693659332615.md",
+    "type": "x_article",
+    "fetched_at": "2026-04-13T08:25:16.485Z"
+  },
+  "https://www.letta.com/blog/benchmarking-ai-agent-memory": {
+    "status": "fetched",
+    "file": "raw/letta-com-blog-benchmarking-ai-agent-memory.md",
+    "type": "article",
+    "fetched_at": "2026-04-13T08:03:46.526Z"
+  },
+  "https://arxiv.org/html/2603.03329v1": {
+    "status": "fetched",
+    "file": "raw/arxiv-org-html-2603-03329v1.md",
+    "type": "paper",
+    "fetched_at": "2026-04-13T08:03:47.277Z"
+  },
+  "https://openai.com/index/harness-engineering/": {
+    "status": "fetched",
+    "file": "raw/openai-com-index-harness-engineering.md",
+    "type": "article",
+    "fetch_method": "agent-browser",
+    "fetched_at": "2026-04-13T17:53:12.126Z"
+  },
+  "https://openai.com/index/unlocking-the-codex-harness/": {
+    "status": "fetched",
+    "file": "raw/openai-com-index-unlocking-the-codex-harness.md",
+    "type": "article",
+    "fetch_method": "agent-browser",
+    "fetched_at": "2026-04-13T17:53:12.127Z"
+  },
+  "https://simonwillison.net/2025/Sep/30/designing-agentic-loops/": {
+    "status": "fetched",
+    "file": "raw/simonwillison-net-2025-sep-30-designing-agentic-loops.md",
+    "type": "article",
+    "fetched_at": "2026-04-13T20:27:25.429Z"
+  }
+}

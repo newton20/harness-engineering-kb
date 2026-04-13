@@ -1,0 +1,14 @@
+{
+  "name": "kb-agent-harness-engineering",
+  "version": "1.0.0",
+  "description": "Karpathy-style LLM knowledge base for agent harness engineering",
+  "private": true,
+  "scripts": {
+    "ingest": "node scripts/ingest.js",
+    "compile": "node scripts/compile.js",
+    "query": "node scripts/query.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.0"
+  }
+}
