@@ -19,9 +19,13 @@ sources:
   - raw/openai-com-index-harness-engineering.md
   - raw/servasyy_ai-2042951017462169812.md
   - raw/simonwillison-net-2025-sep-30-designing-agentic-loops.md
-source_count: 7
+  - raw/tianpan-co-zh-blog-2026-04-12-deep-research-agents-orchestrating-multi-.md
+  - raw/anthropic-com-engineering-multi-agent-research-system.md
+  - raw/code-research-claude-code.md
+  - raw/code-research-karpathy-autoresearch.md
+source_count: 11
 status: draft
-last_compiled: 2026-04-13
+last_compiled: 2026-04-14
 ---
 
 # Practical Best Practices
@@ -132,6 +136,56 @@ OpenAI found that full agent autonomy introduces entropy: agents replicate patte
 
 The fix: encode "golden principles" directly into the repository and build recurring cleanup processes. Background Codex tasks scan for deviations, update quality grades, and open targeted refactoring PRs on a regular cadence. "This functions like garbage collection. Technical debt is like a high-interest loan: it's almost always better to pay it down continuously in small increments than to let it compound." [Source: raw/openai-com-index-harness-engineering.md]
 
+## Effort Scaling: Classify Before You Start
+
+Not every query deserves the same amount of compute. A practical best practice emerging from deep research systems is to classify query complexity before dispatching agents. Simple factual questions can be answered by a single agent in one pass. Moderate questions benefit from a few search-reason cycles. Complex research questions justify multiple parallel subagents running extended search loops. [Source: raw/tianpan-co-zh-blog-2026-04-12-deep-research-agents-orchestrating-multi-.md]
+
+Anthropic's Research feature validates this: token usage explains 80% of performance variance. Under-investing in a complex query produces thin results; over-investing in a simple query wastes money (deep research sessions cost $2-5 and use 15x the tokens of a standard chat turn). The harness should make this classification explicitly rather than treating all queries identically. [Source: raw/anthropic-com-engineering-multi-agent-research-system.md, raw/tianpan-co-zh-blog-2026-04-12-deep-research-agents-orchestrating-multi-.md]
+
+## Convergence Detection: Know When to Stop
+
+A critical and often overlooked best practice is detecting when further search iterations produce diminishing returns. Two complementary strategies have emerged as best practice: [Source: raw/tianpan-co-zh-blog-2026-04-12-deep-research-agents-orchestrating-multi-.md]
+
+- **Coverage checklists:** Before starting research, decompose the question into sub-questions or aspects that must be covered. Track which aspects have been addressed. When coverage reaches a threshold (e.g., 90%), stop searching. This is deterministic and auditable.
+- **Budget cutoffs:** Set hard limits on token spend, time, or iteration count. When the budget is exhausted, synthesize from whatever has been gathered. This prevents runaway sessions.
+
+The best systems combine both: the coverage checklist provides a quality signal, and the budget cutoff provides a safety net. Neither alone is sufficient -- checklists without budgets can loop indefinitely on hard-to-find information, and budgets without checklists can stop before critical aspects are covered. [Source: raw/tianpan-co-zh-blog-2026-04-12-deep-research-agents-orchestrating-multi-.md]
+
+## Minimal-Signal Extraction
+
+Karpathy's autoresearch demonstrates a concrete anti-context-bloat pattern: redirect all program output to a log file, then grep only the key metrics into the agent's context. In autoresearch, each 5-minute training run produces roughly 630 lines of output, but only 2 scalar values (val_bpb and peak_vram_mb) enter the agent's context via `grep "^val_bpb:\|^peak_vram_mb:" run.log`. This adds 3-5 lines per experiment instead of hundreds. The system prompt explicitly warns "do NOT use tee or let output flood your context." The pattern generalizes to any agent that runs evaluation processes: redirect stdout, extract the metrics that matter, discard the rest. [Source: raw/code-research-karpathy-autoresearch.md]
+
+## Structural Immutability via File Separation
+
+A related autoresearch pattern: enforce the boundary between mutable strategy code and protected evaluation harness through physical file separation. In autoresearch, train.py is mutable (the agent can edit it freely), while prepare.py containing the evaluation function is read-only by natural language contract. The agent cannot game the metric without violating the read-only rule. This is not access control -- it is a structural design decision where the evaluation oracle lives in a file the agent is instructed never to modify. For any self-improving agent system, the backtest harness or evaluation function must be structurally separated from the code the agent is allowed to mutate. [Source: raw/code-research-karpathy-autoresearch.md]
+
+## Prompt Cache-First Architecture
+
+Claude Code's source reveals that prompt cache optimization is a primary design constraint permeating the entire architecture. The system prompt is split at a `SYSTEM_PROMPT_DYNAMIC_BOUNDARY` marker into a globally cacheable prefix (identity, tools, style rules) and a session-specific suffix (memory, environment, MCP tools). Everything before the boundary is identical across all users, enabling cross-org prompt cache sharing. Tool schemas are sorted alphabetically with a cache breakpoint after the last built-in tool -- tool ordering is a cache optimization decision, not an ergonomic one. Forked sub-agents inherit byte-identical prompt prefixes to share the parent's cache. A single tool description change was observed to cause roughly 10.2% of fleet `cache_creation` tokens, illustrating how consequential cache stability is at scale. [Source: raw/code-research-claude-code.md]
+
+## Error-as-Context Over Harness Retries
+
+Claude Code returns all tool errors as `<tool_use_error>` content in the tool_result message rather than throwing exceptions or triggering automatic retries. The model reads the error and decides how to proceed -- it may retry with different parameters, try an alternative approach, or inform the user. This error-as-context pattern produces simpler harness code (no retry logic, no backoff configuration) and smarter error handling, since the model can reason about what went wrong contextually rather than blindly retrying the same operation. The pattern is particularly effective for coding agents where errors are often informative (e.g., a compilation error tells the agent exactly what to fix). [Source: raw/code-research-claude-code.md]
+
+## Deterministic Scaffolds Around Non-Deterministic Reasoning
+
+A principle from the deep research literature that applies broadly to harness engineering: "deterministic scaffolds around non-deterministic reasoning." [Source: raw/tianpan-co-zh-blog-2026-04-12-deep-research-agents-orchestrating-multi-.md] The search loop control -- when to search, when to stop, how many subagents to spawn, what budget to allocate -- should be regular code, not LLM decisions. The LLM's role is to reason about content: what to search for, how to interpret results, what to synthesize. Mixing control flow with content reasoning leads to unpredictable behavior: agents that search forever, agents that stop too early, agents that spawn too many or too few workers.
+
+This reinforces the "thin harness, fat skills" principle (see [Tool Design Patterns](tool-design-patterns.md)): the harness handles deterministic orchestration, the model handles non-deterministic reasoning.
+
+## Source Reliability and Contradiction Detection
+
+When agents gather information from multiple sources, they must handle conflicting claims. Two practices have emerged: [Source: raw/tianpan-co-zh-blog-2026-04-12-deep-research-agents-orchestrating-multi-.md]
+
+- **Multi-source corroboration:** Treat a claim as reliable only when multiple independent sources support it. A single source, no matter how authoritative, may be wrong or outdated.
+- **Contradiction detection:** Actively identify cases where sources disagree and flag these for explicit resolution rather than silently choosing one. The agent should note the disagreement in its output rather than presenting one version as fact.
+
+These practices apply beyond deep research -- any agent that gathers context from external sources (documentation, codebases, web search) faces the same reliability challenge.
+
+## Start Wide, Then Narrow
+
+For research and exploration tasks, the recommended search strategy is to start with broad queries that establish the landscape, then progressively narrow based on what was found. Starting narrow risks missing important context; starting broad and filtering is more robust. This mirrors the progressive disclosure principle applied to the agent's own information gathering rather than to the information presented to the agent. [Source: raw/tianpan-co-zh-blog-2026-04-12-deep-research-agents-orchestrating-multi-.md]
+
 ## Summary of Principles
 
 1. Strip everything that is not load-bearing [Source: raw/systematicls-2028814227004395561.md]
@@ -145,6 +199,18 @@ The fix: encode "golden principles" directly into the repository and build recur
 9. Add browser testing to close the visual feedback loop [Source: raw/anthropic-com-engineering-effective-harnesses-for-long-running-agents.md]
 10. Treat AGENTS.md/CLAUDE.md as a table of contents, not an encyclopedia [Source: raw/openai-com-index-harness-engineering.md]
 11. Build garbage collection for agent-generated codebases [Source: raw/openai-com-index-harness-engineering.md]
+12. Classify query complexity before dispatching agents -- effort scaling prevents both under- and over-investment [Source: raw/tianpan-co-zh-blog-2026-04-12-deep-research-agents-orchestrating-multi-.md]
+13. Use coverage checklists + budget cutoffs for convergence detection [Source: raw/tianpan-co-zh-blog-2026-04-12-deep-research-agents-orchestrating-multi-.md]
+14. Keep search loop control in deterministic code; let the LLM reason about content, not control flow [Source: raw/tianpan-co-zh-blog-2026-04-12-deep-research-agents-orchestrating-multi-.md]
+15. Corroborate across sources and flag contradictions explicitly [Source: raw/tianpan-co-zh-blog-2026-04-12-deep-research-agents-orchestrating-multi-.md]
+16. Extract minimal signals from evaluation output -- redirect stdout, grep key metrics, protect context from flooding [Source: raw/code-research-karpathy-autoresearch.md]
+17. Separate mutable code from immutable evaluation harness via physical file boundaries [Source: raw/code-research-karpathy-autoresearch.md]
+18. Design for prompt cache stability -- static/dynamic boundaries, sorted tool schemas, byte-identical fork prefixes [Source: raw/code-research-claude-code.md]
+19. Return errors as context for the model to reason about rather than retrying automatically in the harness [Source: raw/code-research-claude-code.md]
+20. Use SOUL.md for personality/persona definition -- separate from code instructions (CLAUDE.md) and agent guidelines (AGENTS.md). Personality as user-controlled workspace content survives harness upgrades [Source: raw/code-research-openclaw-openclaw.md]
+21. Use per-provider schema normalization so tool authors write schemas once (TypeBox) and provider quirks (Gemini, OpenAI strict, xAI) are handled at the normalization layer [Source: raw/code-research-openclaw-openclaw.md]
+22. For multi-provider deployments, implement streaming JSON argument repair to handle provider-specific tool call bugs in the pipeline, not after the fact [Source: raw/code-research-openclaw-openclaw.md]
+23. Implement post-compaction context refresh -- re-inject critical config file sections (AGENTS.md startup/safety rules) after compaction with current-date substitution [Source: raw/code-research-openclaw-openclaw.md]
 
 ## Related
 
@@ -154,6 +220,9 @@ The fix: encode "golden principles" directly into the repository and build recur
 - [Long-Running Agent Harnesses](long-running-agent-harnesses.md) -- Initializer agents, incremental progress, context resets
 - [Claude Code Architecture](claude-code-architecture.md) -- System prompt layering, tool result injection, progressive disclosure
 - [OpenAI Codex Harness](openai-codex-harness.md) -- AGENTS.md as TOC, repository as system of record, garbage collection
+- [Deep Research Agents](deep-research-agents.md) -- convergence detection, effort scaling, search strategies, and economics of deep research sessions
+- [Agentic Design Patterns](agentic-design-patterns.md) -- ReAct, Reflection, Planning as formal patterns underlying these best practices
+- [Multi-Agent Reliability](multi-agent-reliability.md) -- source reliability via credibility scoring and adversary-resistant multi-agent coordination
 
 ## Open Questions
 
@@ -171,3 +240,8 @@ The fix: encode "golden principles" directly into the repository and build recur
 - [raw/openai-com-index-harness-engineering.md](../raw/openai-com-index-harness-engineering.md) -- OpenAI's Ryan Lopopolo on building a million-line codebase with zero manually-written code. AGENTS.md as TOC, repository as system of record, entropy and garbage collection, agent legibility, throughput changing merge philosophy.
 - [raw/servasyy_ai-2042951017462169812.md](../raw/servasyy_ai-2042951017462169812.md) -- @servasyy_ai deep technical comparison of Hermes delegate_task (synchronous, isolated, token-efficient) vs. OpenClaw subagent system (asynchronous, event-driven, steerable). Architecture tradeoffs, hybrid patterns.
 - [raw/simonwillison-net-2025-sep-30-designing-agentic-loops.md](../raw/simonwillison-net-2025-sep-30-designing-agentic-loops.md) -- Simon Willison, Sep 2025. YOLO mode risk taxonomy (bad commands, exfiltration, proxy attacks), sandbox mitigations, tightly scoped credentials with budget limits.
+- [raw/tianpan-co-zh-blog-2026-04-12-deep-research-agents-orchestrating-multi-.md](../raw/tianpan-co-zh-blog-2026-04-12-deep-research-agents-orchestrating-multi-.md) -- Tian Pan, Apr 2026. Convergence detection (coverage checklists, budget cutoffs), effort scaling, source reliability (multi-source corroboration, contradiction detection), deterministic scaffolds around non-deterministic reasoning, deep research economics ($2-5/session, 15x chat tokens).
+- [raw/anthropic-com-engineering-multi-agent-research-system.md](../raw/anthropic-com-engineering-multi-agent-research-system.md) -- Anthropic, Apr 2026. Token usage explains 80% of performance variance. Parallel tool calling cut research time by 90%. Effort scaling validation.
+- [raw/code-research-claude-code.md](../raw/code-research-claude-code.md) -- Code research, Apr 2026. Prompt cache-first architecture with static/dynamic boundary, cache-stable tool ordering, error-as-context pattern.
+- [raw/code-research-karpathy-autoresearch.md](../raw/code-research-karpathy-autoresearch.md) -- Code research, Apr 2026. Minimal-signal extraction via redirect+grep, structural immutability via file separation for tamper-proof evaluation.
+- [raw/code-research-openclaw-openclaw.md](../raw/code-research-openclaw-openclaw.md) -- Code research, Apr 2026. SOUL.md persona pattern, per-provider schema normalization, streaming JSON argument repair, post-compaction context refresh.

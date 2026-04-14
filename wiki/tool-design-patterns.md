@@ -17,9 +17,13 @@ sources:
   - raw/0xblacklight-2036534699582255329.md
   - raw/gakonst-2036560009128194052.md
   - raw/simonwillison-net-2025-sep-30-designing-agentic-loops.md
-source_count: 6
+  - raw/anthropic-com-engineering-multi-agent-research-system.md
+  - raw/code-research-claude-code.md
+  - raw/code-research-karpathy-autoresearch.md
+  - raw/code-research-openclaw-openclaw.md
+source_count: 10
 status: draft
-last_compiled: 2026-04-13
+last_compiled: 2026-04-14
 ---
 
 # Tool Design Patterns
@@ -53,6 +57,22 @@ Claude Opus 4.5 scored 42% on CORE-Bench with one scaffold and 78% with another 
 Cursor's approach to managing large tool sets is lazy loading: tools are loaded into context only when they become relevant to the current task. Cursor syncs tool descriptions to a folder structure and gives the agent only tool names as static context. Full definitions are fetched on-demand. In A/B testing, this cut token usage by **46.9%** (statistically significant). [Source: raw/Hxlfed14-2028116431876116660.md]
 
 Manus takes a different approach to the same problem: rather than adding and removing tools dynamically (which invalidates the KV-cache), all ~29 tools remain permanently loaded and availability per step is controlled by constraining output token probabilities during decoding (logit masking). [Source: raw/Hxlfed14-2028116431876116660.md] Both approaches work; the right answer may depend on token economics.
+
+## Deferred Tool Loading via ToolSearchTool
+
+Claude Code's source reveals a concrete implementation of lazy loading that goes beyond Cursor's approach. MCP tools and flagged built-ins start in a "deferred" state where the model sees only tool names via a `tool_reference` API content type -- no schemas are loaded. The model must explicitly call `ToolSearchTool` to load a tool's full schema before first use, saving approximately 11K tokens of tool schemas that would otherwise occupy context from the start. Discovered tool schemas persist via message history scanning so they survive compaction. Delta notifications keep the model updated when tool availability changes. [Source: raw/code-research-claude-code.md]
+
+## Tool Concurrency Partitioning
+
+Claude Code partitions tool execution into read-safe and write operations. Read-safe tools (Glob, Grep, Read) are batched for parallel execution -- up to 10 concurrent calls per turn -- yielding roughly 10x throughput on read-heavy turns. Write operations always run serially. Context modifiers from concurrent tools are queued and applied only after the entire batch completes. This partitioning enables fast data-gathering phases while preventing the race conditions that would arise from concurrent writes. [Source: raw/code-research-claude-code.md]
+
+## buildTool() Factory and Error-as-Context
+
+Claude Code registers its 50+ tools through a `buildTool()` factory with fail-closed defaults -- tools must explicitly opt into capabilities rather than opt out of restrictions. All tool errors are returned as `<tool_use_error>` content in the `tool_result` message rather than throwing exceptions. The harness performs no automatic retries; instead, the model reads the error and decides how to proceed. This error-as-context pattern produces simpler harness code and smarter error handling, since the model can reason about what went wrong and adapt its approach rather than blindly retrying the same operation. [Source: raw/code-research-claude-code.md]
+
+## Prose-as-Schema: Tool APIs in Natural Language
+
+Karpathy's autoresearch takes an extreme position on tool design: the entire tool API is defined as natural language in a 115-line markdown file (program.md). There are no JSON schemas, no typed interfaces, no MCP integration. The agent's available tools are 6-8 shell commands (git, edit, uv run, grep, tail) described inline in numbered prose steps. Tool selection is not an LLM decision -- it is a hardcoded sequence in the loop definition, with the LLM's creativity confined to a single degree of freedom: what mutation to make to the code. This demonstrates that zero tool infrastructure is viable when the tool sequence is deterministic and the creative space is deliberately narrow. [Source: raw/code-research-karpathy-autoresearch.md]
 
 ## Thin Harness, Fat Skills
 
@@ -90,6 +110,34 @@ Georgios Konstantopoulos (@gakonst) describes a production agent architecture wh
 
 This is a concrete example of putting deterministic infrastructure (database, firewall, container orchestration) below the agent while keeping the agent's tool interface simple -- the agent calls standard REST APIs; the infrastructure handles security, persistence, and coordination.
 
+## Tool Descriptions as a First-Class Concern
+
+Anthropic's multi-agent Research feature revealed that tool descriptions are far more consequential than most harness engineers realize. During development, a dedicated **tool-testing agent** was used to evaluate and rewrite tool descriptions. The rewritten descriptions resulted in a **40% decrease in task completion time** -- a dramatic improvement from changing nothing but the text the agent reads about its tools. [Source: raw/anthropic-com-engineering-multi-agent-research-system.md]
+
+The underlying problem: bad tool descriptions send agents down completely wrong paths. When an agent encounters a tool with a vague or misleading description, it may select the wrong tool entirely, use the right tool with incorrect parameters, or waste tokens on exploratory tool calls trying to figure out what a tool does. In multi-agent systems where subagents encounter unseen MCP tools with varying description quality, this problem compounds -- each subagent independently misinterprets the same bad description. [Source: raw/anthropic-com-engineering-multi-agent-research-system.md]
+
+The heuristic that emerged: agents should examine all available tools first, match tool usage to user intent, and prefer specialized tools over generic ones. This is not just prompt engineering advice -- it is a structural design decision about how the harness presents tools to the agent. If you have both a generic "web_search" tool and a specialized "academic_search" tool, the descriptions must make the specialization clear enough that the agent reliably chooses the right one for the task. [Source: raw/anthropic-com-engineering-multi-agent-research-system.md]
+
+This finding reinforces the broader principle that tool design is iterative (see "The AskUserQuestion Tool Evolution" above), but adds a specific lever: if your agent is underperforming, rewrite your tool descriptions before adding new tools or changing the agent's prompt.
+
+## Per-Provider Schema Normalization
+
+OpenClaw reveals a production-scale challenge not addressed by simpler harnesses: tool schemas must be adapted per LLM provider. Tools are defined once in TypeBox (`@sinclair/typebox`), but a `normalizeToolParameterSchema()` function normalizes schemas at call time for each provider -- flattening `anyOf`/`oneOf` unions for OpenAI strict mode, stripping unsupported keywords for Gemini and xAI, enforcing `additionalProperties: false` for OpenAI strict mode, and validating compatibility before enabling strict mode. If any tool in the inventory fails the `isStrictOpenAIJsonSchemaCompatible()` check, the harness silently falls back to non-strict mode. MCP tools pass through the same normalization pipeline, receiving identical treatment to core tools. [Source: raw/code-research-openclaw-openclaw.md]
+
+This is a provider portability abstraction: tool authors write schemas once, and the normalization layer handles all provider quirks. The practical lesson for harness engineers: if you support multiple LLM providers, plan for a normalization layer between your tool definitions and the API calls.
+
+## Streaming JSON Argument Repair
+
+A related finding from OpenClaw: provider-specific bugs in tool call argument streaming are common enough to warrant dedicated repair logic. The harness includes a stream wrapper that tracks partial JSON buffers per tool call content index, attempts `JSON.parse` on each partial, and falls back to `extractBalancedJsonPrefix` when parsing fails. Specific repairs target named providers -- Kimi (JSON with leading/trailing garbage) and xAI (HTML entity encoding in arguments). The repair runs in the streaming pipeline, fixing partial events before they reach the agent core. [Source: raw/code-research-openclaw-openclaw.md]
+
+Additionally, tool name normalization goes 4 levels deep: exact match, case-insensitive match, structured segment matching (splitting on `.` and `/`), and tool-call-ID inference (extracting names from IDs like `functions.tool_name.1`). An unknown-tool loop guard detects when the model repeatedly calls a hallucinated tool name and rewrites the assistant's message to a self-corrective instruction. This depth of fallback reflects the reality of multi-provider deployments where model output quality varies significantly. [Source: raw/code-research-openclaw-openclaw.md]
+
+## Skills as Prompt Injections (Not Tools)
+
+OpenClaw draws a sharp architectural distinction between tools and skills. Skills are NOT registered as callable tools. Instead, the system prompt injects an XML `<available_skills>` catalog containing name, description, and file location for each available skill. The model is instructed to read the SKILL.md file via its `read` tool only when a skill clearly applies -- never preloading multiple skill files. This means skills are prompt injections that instruct the model to use its existing tools in domain-specific ways, not additions to the tool set. [Source: raw/code-research-openclaw-openclaw.md]
+
+This aligns with Garry Tan's "thin harness, fat skills" architecture but makes the mechanism concrete: skills live as markdown files in the workspace, are advertised cheaply via a catalog, and are loaded lazily via the model's own tools. The harness stays thin (no skill-specific tools), the skills stay fat (full procedural instructions), and the model mediates the loading decision. This is the first concrete implementation we've documented of the thin-harness/fat-skills pattern at production scale. [Source: raw/code-research-openclaw-openclaw.md]
+
 ## Design Principles Summary
 
 The accumulated wisdom on tool design converges on several principles:
@@ -109,6 +157,10 @@ The accumulated wisdom on tool design converges on several principles:
 - [Claude Code Architecture](claude-code-architecture.md) -- Claude Code's ~18 primitive tools, TodoWrite/Task evolution, progressive disclosure
 - [Practical Best Practices](practical-best-practices.md) -- Progressive disclosure, simplest solution first, model generation rethinking
 - [What Is Harness Engineering?](what-is-harness-engineering.md) -- The harness as the product, the core agent loop
+- [Deep Research Agents](deep-research-agents.md) -- tool-testing agents and parallel tool calling as key deep research optimizations
+- [Agentic Design Patterns](agentic-design-patterns.md) -- Tool Use as one of the five core agentic design patterns
+- [Multi-Agent Reliability](multi-agent-reliability.md) -- how tool selection interacts with credibility scoring in adversarial multi-agent settings
+- [Autoresearch and Self-Improvement](autoresearch-and-self-improvement.md) -- prose-as-schema and deterministic tool sequences in autonomous research loops
 
 ## Open Questions
 
@@ -124,3 +176,7 @@ The accumulated wisdom on tool design converges on several principles:
 - [raw/0xblacklight-2036534699582255329.md](../raw/0xblacklight-2036534699582255329.md) -- Kyle Mistele on filesystem abstraction, separating tool interface from execution, FUSE-based approaches, owning the harness for control flow.
 - [raw/gakonst-2036560009128194052.md](../raw/gakonst-2036560009128194052.md) -- Georgios Konstantopoulos on production agent architecture with Postgres as coordinator, Docker containers, 150+ API integrations, firewall-based secret injection.
 - [raw/simonwillison-net-2025-sep-30-designing-agentic-loops.md](../raw/simonwillison-net-2025-sep-30-designing-agentic-loops.md) -- Simon Willison, Sep 2025. Shell commands over MCP, AGENTS.md with worked examples, agents generalize from a single example.
+- [raw/anthropic-com-engineering-multi-agent-research-system.md](../raw/anthropic-com-engineering-multi-agent-research-system.md) -- Anthropic, Apr 2026. Tool-testing agent that rewrote descriptions (40% task time decrease), tool selection heuristics for multi-agent systems.
+- [raw/code-research-claude-code.md](../raw/code-research-claude-code.md) -- Code research, Apr 2026. Deferred tool loading via ToolSearchTool + tool_reference API type, concurrency partitioning, buildTool() factory, error-as-context pattern, cache-stable tool ordering.
+- [raw/code-research-karpathy-autoresearch.md](../raw/code-research-karpathy-autoresearch.md) -- Code research, Apr 2026. Prose-as-schema tool definition in natural language, deterministic tool sequence, shell commands as tool API.
+- [raw/code-research-openclaw-openclaw.md](../raw/code-research-openclaw-openclaw.md) -- Code research, Apr 2026. Per-provider schema normalization (TypeBox → Gemini/OpenAI/xAI), streaming JSON argument repair, 4-level tool name normalization, skills as prompt injections (not tools), MCP tools as first-class with same normalization pipeline.

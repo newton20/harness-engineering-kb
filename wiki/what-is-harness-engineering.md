@@ -14,7 +14,8 @@ sources:
   - raw/hwchase17-2040467997022884194.md
   - raw/rohit4verse-2041548810804211936.md
   - raw/simonwillison-net-2025-sep-30-designing-agentic-loops.md
-source_count: 6
+  - raw/machinelearningmastery-com-the-roadmap-to-mastering-agentic-ai-design-patterns.md
+source_count: 7
 status: draft
 last_compiled: 2026-04-13
 ---
@@ -95,6 +96,12 @@ OpenAI's Codex team provided the most extreme validation. In a February 2026 art
 
 Their key lesson aligned with the broader consensus: AGENTS.md should be a ~100-line table of contents, not a monolithic manual. Knowledge lives in a structured docs/ directory with mechanical enforcement via linters and CI. [Source: raw/openai-com-index-harness-engineering.md]
 
+## Design Patterns as Architectural Vocabulary
+
+The five core agentic design patterns -- **ReAct** (reason-then-act loops), **Reflection** (self-critique and iterative refinement), **Tool Use** (external tool integration), **Planning** (task decomposition and sequencing), and **Multi-Agent** (coordinated specialized agents) -- form the architectural vocabulary of harness engineering. Each pattern addresses a specific failure mode: ReAct prevents blind action without reasoning, Reflection prevents unchecked errors, Planning prevents incoherent multi-step work, and Multi-Agent prevents single points of failure on complex tasks. [Source: raw/machinelearningmastery-com-the-roadmap-to-mastering-agentic-ai-design-patterns.md]
+
+The critical principle: **"Start with the problem, not the pattern."** Pattern selection should be treated as a production architecture decision, not a theoretical exercise. A simple ReAct loop may outperform a complex multi-agent system if the task does not justify the coordination overhead. The harness engineer's job is to match the minimal pattern to the task's actual requirements. [Source: raw/machinelearningmastery-com-the-roadmap-to-mastering-agentic-ai-design-patterns.md] See [Agentic Design Patterns](agentic-design-patterns.md) for a full treatment of each pattern and its tradeoffs.
+
 ## Industry Convergence and Disagreement
 
 Near-consensus across teams: the single flat while(tool_call) loop wins over complex orchestration; file system as extended memory; errors preserved not cleaned; fake planning tools (TodoWrite, todo.md) for coherence; primitives (bash, grep, filesystem) over custom integrations. [Source: raw/Hxlfed14-2028116431876116660.md]
@@ -114,6 +121,9 @@ Dex Horthy (creator of "12 Factor Agents") puts the threshold at 40% of the mode
 - [Agent Memory and Context Management](agent-memory-and-context-management.md) -- memory as core harness function, context curation, and compaction strategies
 - [Practical Best Practices](practical-best-practices.md) -- the concrete "how" of harness engineering: progressive disclosure, simplification, sycophancy handling
 - [Tool Design Patterns](tool-design-patterns.md) -- "thin harness, fat skills" architecture and action space design principles
+- [Agentic Design Patterns](agentic-design-patterns.md) -- ReAct, Reflection, Planning, Tool Use, Multi-Agent as the five core patterns forming the architectural vocabulary of harness engineering
+- [Deep Research Agents](deep-research-agents.md) -- orchestrator-worker architectures, convergence detection, and economics of extended agent sessions
+- [Multi-Agent Reliability](multi-agent-reliability.md) -- adversary-resistant multi-agent coordination via credibility scoring
 
 ## Open Questions
 
@@ -130,3 +140,4 @@ Dex Horthy (creator of "12 Factor Agents") puts the threshold at 40% of the mode
 - [raw/hwchase17-2040467997022884194.md](../raw/hwchase17-2040467997022884194.md) -- Harrison Chase (@hwchase17), Apr 2026. Three-layer model of continual learning in agentic systems.
 - [raw/rohit4verse-2041548810804211936.md](../raw/rohit4verse-2041548810804211936.md) -- Rohit (@rohit4verse), Apr 2026. Four-layer model derived from Claude Code source analysis.
 - [raw/simonwillison-net-2025-sep-30-designing-agentic-loops.md](../raw/simonwillison-net-2025-sep-30-designing-agentic-loops.md) -- Simon Willison, Sep 2025. "Designing agentic loops" as a precursor framing to harness engineering, defining the skill of designing tools and loops for agents. YOLO mode risks, shell commands over MCP, tightly scoped credentials.
+- [raw/machinelearningmastery-com-the-roadmap-to-mastering-agentic-ai-design-patterns.md](../raw/machinelearningmastery-com-the-roadmap-to-mastering-agentic-ai-design-patterns.md) -- Machine Learning Mastery, 2025. Five core agentic design patterns (ReAct, Reflection, Tool Use, Planning, Multi-Agent) as architectural vocabulary. "Start with the problem, not the pattern."

@@ -12,9 +12,13 @@ sources:
   - raw/anthropic-com-engineering-effective-harnesses-for-long-running-agents.md
   - raw/anthropic-com-engineering-harness-design-long-running-apps.md
   - raw/JayScambler-2033971974284714355.md
-source_count: 3
+  - raw/anthropic-com-engineering-multi-agent-research-system.md
+  - raw/code-research-claude-code.md
+  - raw/code-research-karpathy-autoresearch.md
+  - raw/code-research-openclaw-openclaw.md
+source_count: 7
 status: draft
-last_compiled: 2026-04-13
+last_compiled: 2026-04-14
 ---
 
 Complex software projects cannot be completed within a single context window. Building agents that work effectively across multiple context windows -- spanning hours or days of autonomous operation -- requires deliberate harness design that solves for state handoff, incremental progress, and quality evaluation. Anthropic published two major research posts on this problem (November 2025 and March 2026), each introducing distinct architectural patterns, while the open-source community has developed complementary approaches to persistent learning across agent runs.
@@ -121,6 +125,32 @@ In Anthropic's earlier testing, Claude Sonnet 4.5 exhibited context anxiety stro
 
 This illustrates a general principle: every component in a harness encodes an assumption about what the model cannot do on its own, and those assumptions are worth stress-testing as models improve. [Source: raw/anthropic-com-engineering-harness-design-long-running-apps.md]
 
+## Solution 4: Claude Code's 4-Layer Compaction Cascade
+
+Source code analysis of Claude Code reveals the most sophisticated compaction system in any open agent harness, designed to enable unlimited-length sessions. The cascade has four layers that fire in order of increasing cost: (1) snip (drop oldest messages), (2) microcompact (clear old tool_result bodies), (3) API-level context management (server-side clearing), and (4) autocompact (a forked agent that produces a structured 9-section summary). All four layers can fire in the same loop iteration. A circuit breaker suppresses autocompact after 3 consecutive failures to prevent cascading overhead. [Source: raw/code-research-claude-code.md]
+
+The autocompact layer uses a forked sub-agent -- a child process that inherits the parent's full conversation history and byte-identical system prompt, sharing the parent's prompt cache prefix so the summarization API call is nearly free. After compaction completes, up to 5 recently-read files (within a 50K token budget, 5K per file) are re-injected as attachments to restore active working context. Skill content intentionally survives compaction and is never cleared. This post-compact file re-injection is what enables coding agents to resume coherent work after context reduction. [Source: raw/code-research-claude-code.md]
+
+The forked agent pattern extends beyond compaction: Claude Code uses it for background memory extraction (extractMemories), mid-session note-taking (SessionMemory), and sub-agent status polling. Each fork shares the parent's cached prompt prefix, making the pattern economically viable for frequent background tasks. This represents a fundamental building block for long-running agent work -- any background operation that needs the parent's context can be forked cheaply. [Source: raw/code-research-claude-code.md]
+
+## Solution 5: Autoresearch's "NEVER STOP" Loop
+
+Karpathy's autoresearch takes the opposite approach to structured session management: the outer experiment loop has no termination criterion whatsoever. The system prompt contains the directive "NEVER STOP... You are autonomous," and the loop runs until the human physically interrupts the process. There is no convergence detection, no budget cutoff, no coverage checklist. The design choice is deliberate -- the system cannot detect when it has exhausted useful mutations, so human judgment is the only reliable termination signal. Combined with git-as-state-machine (where branch HEAD always points to the current best experiment), the system can be interrupted and resumed at any point without losing progress. [Source: raw/code-research-karpathy-autoresearch.md]
+
+## Solution 3: Orchestrator-Worker Pattern (Anthropic Research, April 2026)
+
+Anthropic's multi-agent Research feature introduces a third long-running architecture: the **orchestrator-worker** pattern. A lead research agent (the orchestrator) receives a user query, creates a plan, and delegates subtasks to multiple subagents (workers) that run in parallel. This is distinct from the earlier planner-generator-evaluator architecture in that the orchestrator actively coordinates a variable number of workers rather than running a fixed pipeline. [Source: raw/anthropic-com-engineering-multi-agent-research-system.md]
+
+Several design decisions in this system are directly relevant to long-running agent harness design:
+
+- **Subagent output to filesystem:** Rather than passing research results back through the orchestrator's context (a "game of telephone" that loses fidelity), subagents write their outputs directly to the filesystem. The lead agent reads these files when synthesizing the final report. This avoids token overhead and information loss that accumulate when results are relayed through intermediate context windows. [Source: raw/anthropic-com-engineering-multi-agent-research-system.md]
+
+- **Rainbow deployments:** Anthropic uses rainbow deployments to avoid disrupting running agents during software updates. Because research sessions can run for extended periods (using 15x the tokens of a standard chat turn), deploying a new version mid-session could break an in-progress agent. Rainbow deployments route new sessions to updated code while letting existing sessions complete on the version they started with -- a critical infrastructure pattern for any long-running agent system. [Source: raw/anthropic-com-engineering-multi-agent-research-system.md]
+
+- **Checkpoints and resume-from-failure:** Long research sessions are inherently fragile. The system saves the research plan to persistent memory because context may be truncated at 200K tokens. If a subagent fails or the session is interrupted, the orchestrator can resume from the saved plan rather than starting over. This makes checkpoint-and-resume a non-negotiable requirement for any agent session measured in hours rather than minutes. [Source: raw/anthropic-com-engineering-multi-agent-research-system.md]
+
+- **Token usage as performance predictor:** Anthropic found that token usage explains 80% of performance variance in their research system. This provides a practical proxy metric for harness engineers: if the agent is not using enough tokens (not doing enough work), the output quality will suffer regardless of other design choices. [Source: raw/anthropic-com-engineering-multi-agent-research-system.md]
+
 ## Iterating on the Harness
 
 The March 2026 work documents a progressive simplification. After the initial three-agent harness proved effective but expensive:
@@ -149,6 +179,16 @@ The **playbook** is the key abstraction -- a living document that grows across r
 
 Autocontext also includes a frontier-to-local distillation pipeline: run discovery with a frontier model (Claude Opus 4.6, GPT-5.4), export training data, train a small local model via MLX on Apple Silicon, and route future runs through the local model when strong enough, falling back to frontier when weak. [Source: raw/JayScambler-2033971974284714355.md]
 
+## OpenClaw: Two-Level Loops and Lane-Based Serialization
+
+OpenClaw's Pi harness introduces two production patterns for long-running agent reliability not seen in the harnesses described above.
+
+**Two-level loop architecture.** Rather than a single while-tool-call loop, OpenClaw separates the agent loop into two levels: an outer `while (true)` retry loop (`runEmbeddedPiAgent`) that manages failover, compaction, auth-profile rotation, and model switching across "attempts," and an inner model-driven tool-calling loop (`activeSession.prompt()`) delegated entirely to the Pi SDK. The outer loop has a dynamic iteration cap computed as `BASE(24) + authProfiles × 8`, capped at 160 -- meaning more API key profiles unlock more retries. Termination conditions include successful completion, cap exhaustion, timeout, abort signal, strict-agentic planning-only blocks, and the `sessions_yield` cooperative abort. The clean separation means harness-level retry bugs cannot corrupt the tool loop, and the SDK can be upgraded independently. [Source: raw/code-research-openclaw-openclaw.md]
+
+**Lane-based session serialization.** Each OpenClaw session gets its own command queue (`session:${key}` lane), preventing concurrent agent runs on the same session without blocking other sessions. Cron jobs get a separate `Cron` lane, and nested operations (subagent runs triggered from within a cron job) use a `Nested` lane to avoid deadlock. This per-session serialization is critical for multi-channel deployments where messages from different channels (WhatsApp, Slack, Discord) may arrive simultaneously for the same user session. [Source: raw/code-research-openclaw-openclaw.md]
+
+**SOUL.md as persona identity file.** OpenClaw introduces a `SOUL.md` workspace file for defining the agent's personality. The template reads: "You're not a chatbot. You're becoming someone." The system prompt injects a single line: "If SOUL.md is present, embody its persona and tone." This makes personality a user-controlled, file-based property that survives harness upgrades -- distinct from CLAUDE.md (code instructions) and AGENTS.md (agent guidelines). [Source: raw/code-research-openclaw-openclaw.md]
+
 ## Lessons
 
 - Decomposing work into tractable chunks and using structured artifacts to hand off context between sessions are the two core load-bearing patterns for long-running agents. [Source: raw/anthropic-com-engineering-effective-harnesses-for-long-running-agents.md]
@@ -164,6 +204,9 @@ Autocontext also includes a frontier-to-local distillation pipeline: run discove
 - [OpenAI Codex Harness](openai-codex-harness.md) -- Codex regularly runs 6+ hour tasks with similar multi-session patterns
 - [Autoresearch and Self-Improvement](autoresearch-and-self-improvement.md) -- the GAN-inspired evaluator pattern and persistent learning loops across agent runs
 - [Practical Best Practices](practical-best-practices.md) -- actionable tips for multi-session work: git as recovery, progressive disclosure, context management
+- [Deep Research Agents](deep-research-agents.md) -- orchestrator-worker patterns, convergence detection, and economics of long-running research sessions
+- [Agentic Design Patterns](agentic-design-patterns.md) -- ReAct, Reflection, Planning, Tool Use, Multi-Agent as foundational patterns underlying these architectures
+- [Multi-Agent Reliability](multi-agent-reliability.md) -- credibility scoring and adversary-resistant coordination for multi-agent systems
 
 ## Open Questions
 
@@ -176,3 +219,6 @@ Autocontext also includes a frontier-to-local distillation pipeline: run discove
 - [raw/anthropic-com-engineering-effective-harnesses-for-long-running-agents.md](../raw/anthropic-com-engineering-effective-harnesses-for-long-running-agents.md) -- Anthropic, Nov 2025. Initializer + coding agent pattern for multi-context-window work.
 - [raw/anthropic-com-engineering-harness-design-long-running-apps.md](../raw/anthropic-com-engineering-harness-design-long-running-apps.md) -- Anthropic (Prithvi Rajasekaran), Mar 2026. Three-agent architecture with planner, generator, and evaluator.
 - [raw/JayScambler-2033971974284714355.md](../raw/JayScambler-2033971974284714355.md) -- Jay Scambler (@JayScambler), Mar 2026. Autocontext: persistent learning and playbook accumulation across agent runs.
+- [raw/anthropic-com-engineering-multi-agent-research-system.md](../raw/anthropic-com-engineering-multi-agent-research-system.md) -- Anthropic, Apr 2026. Multi-agent Research feature: orchestrator-worker pattern, rainbow deployments, subagent output to filesystem, token usage as performance predictor.
+- [raw/code-research-claude-code.md](../raw/code-research-claude-code.md) -- Code research, Apr 2026. 4-layer compaction cascade, forked agent pattern for background work, post-compact file re-injection, circuit breaker on autocompact failures.
+- [raw/code-research-karpathy-autoresearch.md](../raw/code-research-karpathy-autoresearch.md) -- Code research, Apr 2026. "NEVER STOP" directive with human interruption as only termination, git-as-state-machine for interrupt-safe progress.
