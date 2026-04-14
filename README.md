@@ -2,7 +2,7 @@
 
 A [Karpathy-style](https://karpathy.ai/blog/fringe.html) LLM knowledge base covering how AI coding agents (Claude Code, Codex, Cursor, Windsurf, etc.) are built, configured, and optimized.
 
-29 sources. 9 synthesized wiki articles. Every claim cited. Cross-referenced.
+39 sources (including 3 deep code research reports). 13 synthesized wiki articles. Every claim cited. Cross-referenced.
 
 ## Why This Exists
 
@@ -23,12 +23,15 @@ This knowledge base collects, synthesizes, and cross-references the best thinkin
 | [Tool Design Patterns](wiki/tool-design-patterns.md) | Action space design, AskUserQuestion evolution, Vercel's 80% tool deletion, lazy loading |
 | [Autoresearch and Self-Improvement](wiki/autoresearch-and-self-improvement.md) | Karpathy's autoresearch, GAN-inspired evaluators, autocontext, yes/no checklists |
 | [Practical Best Practices](wiki/practical-best-practices.md) | Less is more, sycophancy handling, progressive disclosure, YOLO mode safety, multi-agent delegation |
+| [Deep Research Agents](wiki/deep-research-agents.md) | Search-reason loops, orchestrator-worker patterns, convergence detection, economics |
+| [Agentic Design Patterns](wiki/agentic-design-patterns.md) | ReAct, Reflection, Planning, Tool Use, Multi-Agent as formal design patterns |
+| [Multi-Agent Reliability](wiki/multi-agent-reliability.md) | Credibility scoring, adversary resistance, push-based announcements, orphan recovery |
 
 Browse the full index: [wiki/_index.md](wiki/_index.md)
 
 ## Sources
 
-29 raw sources in `raw/`, including:
+39 raw sources in `raw/`, including:
 
 **Anthropic Engineering Blog**
 - [Effective harnesses for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) (Nov 2025)
@@ -49,8 +52,15 @@ Browse the full index: [wiki/_index.md](wiki/_index.md)
 - Simon Willison on designing agentic loops
 - And 16 more tweets, articles, and papers
 
+**Deep Code Research** (via /kb-code-research parallel agent pipeline)
+- [karpathy/autoresearch](https://github.com/karpathy/autoresearch) — Dual-loop architecture, git-as-experiment-database, tamper-proof evaluation
+- [Claude Code](https://claude.ai/claude-code) (local source) — 5-layer memory, prompt cache-first architecture, 50+ tools, fork/swarm multi-agent
+- [openclaw/openclaw](https://github.com/openclaw/openclaw) — Pi harness, dreaming memory consolidation, SOUL.md persona, skill system, dual-runtime multi-agent
+
 **Academic**
 - [AutoHarness: improving LLM agents by automatically synthesizing a code harness](https://arxiv.org/html/2603.03329v1) (arxiv)
+- [Adversary-resistant multi-agent collaboration](https://arxiv.org/html/2505.24239v1) (arxiv)
+- [Agentic RAG survey](https://arxiv.org/html/2501.09136v4) (arxiv)
 
 Full source list: [raw_source_list.txt](raw_source_list.txt)
 
@@ -59,11 +69,12 @@ Full source list: [raw_source_list.txt](raw_source_list.txt)
 This KB is maintained using [kb-skills](https://github.com/newton20/kb-skills), a set of reusable Claude Code skills that implement the Karpathy second-brain methodology:
 
 ```
-/kb-ingest <url>     Fetch sources (tweets, articles, papers, GitHub repos)
-/kb-compile          Synthesize wiki articles with cross-pollination
-/kb-query "question" Answer questions with citations
-/kb-lint             Health check (contradictions, orphans, gaps)
-/kb-explore          Find unexplored connections between topics
+/kb-ingest <url>          Fetch sources (tweets, articles, papers, GitHub repos)
+/kb-compile              Synthesize wiki articles with cross-pollination
+/kb-query "question"     Answer questions with citations
+/kb-lint                 Health check (contradictions, orphans, gaps)
+/kb-explore              Find unexplored connections between topics
+/kb-code-research <repo> Deep code research with 4 parallel specialist agents
 ```
 
 ### Methodology
@@ -90,9 +101,9 @@ The ingest script handles multiple source types with a 3-tier fallback for block
 ## Project Structure
 
 ```
-raw/                 # 29 fetched source documents (immutable)
+raw/                 # 39 fetched source documents (immutable after ingest)
 raw/images/          # Downloaded tweet images
-wiki/                # 9 synthesized wiki articles + index + lint reports
+wiki/                # 13 synthesized wiki articles + index + lint reports
 outputs/             # Generated reports and explorations
 scripts/             # Node.js automation (ingest.js, compile.js, query.js)
 docs/plans/          # Implementation plans
@@ -102,9 +113,23 @@ log.md               # Append-only operation log
 ingest_manifest.json # Per-URL fetch status tracking
 ```
 
+## Deep Code Research
+
+The `/kb-code-research` skill deploys 4 parallel specialist agents (Architecture, Memory, Tools, Multi-Agent) to analyze open-source agent repositories. Each agent runs independently on Sonnet, then the orchestrator synthesizes across dimensions, validates evidence, resolves contradictions, and assesses novelty against existing KB coverage.
+
+**Repos analyzed so far:**
+
+| Repo | Score | Novel | Adopt | Key Finding |
+|------|-------|-------|-------|-------------|
+| karpathy/autoresearch | 8/10 | 7 | 5 | Git-as-experiment-database, prose-as-schema tool definition |
+| Claude Code (local) | 10/10 | 9 | 6 | Prompt cache-first architecture, 5-layer memory, deferred tool loading |
+| openclaw/openclaw | 9/10 | 7 | 8 | Dreaming memory consolidation, sessions_yield cooperative abort, SOUL.md persona |
+
+Each run produces a structured report in `raw/code-research-{repo}.md` with verified evidence paths, cross-cutting flow analysis, and concrete "decisions to adopt." The skill self-improves: accumulated learnings in `outputs/research-learnings.md` are reviewed every 3 repos to tune dimension agent prompts.
+
 ## Key Insights from the KB
 
-Some of the most interesting findings synthesized across all 29 sources:
+Some of the most interesting findings synthesized across all 39 sources:
 
 1. **The harness matters more than the model.** Claude Opus 4.5 scores 42% with one scaffold and 78% with another. Same model. Same benchmark. The only variable is the harness.
 
@@ -115,6 +140,10 @@ Some of the most interesting findings synthesized across all 29 sources:
 4. **OpenAI built a product with zero hand-written code.** 1 million lines, 1,500 PRs, 3 engineers. Every line written by Codex. The engineers' job was entirely harness engineering.
 
 5. **AGENTS.md should be a table of contents, not an encyclopedia.** OpenAI tried "one big AGENTS.md" and it failed. ~100 lines pointing to structured `docs/` works. Mechanical enforcement via linters and CI keeps it honest.
+
+6. **OpenClaw's "dreaming" system consolidates memory autonomously.** Three cron-scheduled phases (light/deep/REM) promote high-recall short-term fragments into long-term memory without agent involvement. The agent doesn't know the tier boundary exists.
+
+7. **Skills are prompt injections, not tools.** OpenClaw's skill system advertises capabilities via an XML catalog in the system prompt, then the model lazily loads SKILL.md files via the read tool. This is the first production implementation of Garry Tan's "thin harness, fat skills" pattern.
 
 ## Contributing
 
