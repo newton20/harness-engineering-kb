@@ -1,0 +1,8 @@
+
+https://tianpan.co/zh/blog/2026-04-12-deep-research-agents-orchestrating-multi-step-search-that-converges
+https://www.anthropic.com/engineering/multi-agent-research-system
+https://www.firecrawl.dev/blog/deep-research-for-ai-agents
+https://arxiv.org/html/2512.20491v1
+https://arxiv.org/html/2501.09136v4
+https://arxiv.org/html/2505.24239v1
+https://machinelearningmastery.com/the-roadmap-to-mastering-agentic-ai-design-patterns/

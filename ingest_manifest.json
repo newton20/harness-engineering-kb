@@ -184,5 +184,47 @@
     "file": "raw/simonwillison-net-2025-sep-30-designing-agentic-loops.md",
     "type": "article",
     "fetched_at": "2026-04-13T20:27:25.429Z"
+  },
+  "https://tianpan.co/zh/blog/2026-04-12-deep-research-agents-orchestrating-multi-step-search-that-converges": {
+    "status": "fetched",
+    "file": "raw/tianpan-co-zh-blog-2026-04-12-deep-research-agents-orchestrating-multi-.md",
+    "type": "article",
+    "fetched_at": "2026-04-14T02:56:22.235Z"
+  },
+  "https://www.anthropic.com/engineering/multi-agent-research-system": {
+    "status": "fetched",
+    "file": "raw/anthropic-com-engineering-multi-agent-research-system.md",
+    "type": "article",
+    "fetched_at": "2026-04-14T02:56:23.836Z"
+  },
+  "https://www.firecrawl.dev/blog/deep-research-for-ai-agents": {
+    "status": "fetched",
+    "file": "raw/firecrawl-dev-blog-deep-research-for-ai-agents.md",
+    "type": "article",
+    "fetched_at": "2026-04-14T02:56:27.064Z"
+  },
+  "https://arxiv.org/html/2512.20491v1": {
+    "status": "fetched",
+    "file": "raw/arxiv-org-html-2512-20491v1.md",
+    "type": "paper",
+    "fetched_at": "2026-04-14T02:56:27.762Z"
+  },
+  "https://arxiv.org/html/2501.09136v4": {
+    "status": "fetched",
+    "file": "raw/arxiv-org-html-2501-09136v4.md",
+    "type": "paper",
+    "fetched_at": "2026-04-14T02:56:28.346Z"
+  },
+  "https://arxiv.org/html/2505.24239v1": {
+    "status": "fetched",
+    "file": "raw/arxiv-org-html-2505-24239v1.md",
+    "type": "paper",
+    "fetched_at": "2026-04-14T02:56:28.916Z"
+  },
+  "https://machinelearningmastery.com/the-roadmap-to-mastering-agentic-ai-design-patterns/": {
+    "status": "fetched",
+    "file": "raw/machinelearningmastery-com-the-roadmap-to-mastering-agentic-ai-design-patterns.md",
+    "type": "article",
+    "fetched_at": "2026-04-14T02:56:29.653Z"
   }
 }
