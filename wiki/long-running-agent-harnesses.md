@@ -16,9 +16,11 @@ sources:
   - raw/code-research-claude-code.md
   - raw/code-research-karpathy-autoresearch.md
   - raw/code-research-openclaw-openclaw.md
-source_count: 7
+  - raw/code-research-all-hands-ai-openhands.md
+  - raw/code-research-anomalyco-opencode.md
+source_count: 9
 status: draft
-last_compiled: 2026-04-14
+last_compiled: 2026-04-15
 ---
 
 Complex software projects cannot be completed within a single context window. Building agents that work effectively across multiple context windows -- spanning hours or days of autonomous operation -- requires deliberate harness design that solves for state handoff, incremental progress, and quality evaluation. Anthropic published two major research posts on this problem (November 2025 and March 2026), each introducing distinct architectural patterns, while the open-source community has developed complementary approaches to persistent learning across agent runs.
@@ -189,6 +191,18 @@ OpenClaw's Pi harness introduces two production patterns for long-running agent 
 
 **SOUL.md as persona identity file.** OpenClaw introduces a `SOUL.md` workspace file for defining the agent's personality. The template reads: "You're not a chatbot. You're becoming someone." The system prompt injects a single line: "If SOUL.md is present, embody its persona and tone." This makes personality a user-controlled, file-based property that survives harness upgrades -- distinct from CLAUDE.md (code instructions) and AGENTS.md (agent guidelines). [Source: raw/code-research-openclaw-openclaw.md]
 
+## Solution 6: OpenHands Event-Driven Loop
+
+OpenHands implements the agent loop as a callback-driven event system rather than a traditional `while` construct. The outer `core/loop.py` is simply `while state not in end_states: await asyncio.sleep(1)` — a passive status poller. All actual stepping happens via `on_event → should_step() → agent.step()` callbacks on the shared EventStream, the append-only universal bus that carries every action, observation, and control event in the system. A pending action gate prevents the controller from issuing a second `agent.step()` before the first action has produced its observation, making the loop inherently serialized without explicit locking. Five termination conditions govern the loop: model finish/reject signal, iteration limit (500 steps), USD budget cap, stuck detection (5 distinct scenarios), and unrecoverable errors. The entire V0 codebase is deprecated as of version 1.0.0, with migration underway to a separate Software Agent SDK — making this architecture a concrete reference point for event-driven design rather than a stable dependency. [Source: raw/code-research-all-hands-ai-openhands.md]
+
+## Solution 7: OpenCode while(true) with DB as Authority
+
+OpenCode implements a code-controlled `while(true)` ReAct loop with five distinct termination paths: natural finish (LLM stop signal), max-steps limit, processor stop signal, compaction failure, and doom-loop interrupt. The max-steps path is architecturally distinctive: rather than injecting a system-level instruction, OpenCode injects a synthetic assistant-turn prefill message, exploiting the model's instruction-following disposition without polluting the system prompt. Each iteration re-reads session state from the SQLite database via Drizzle ORM, making the database the single source of truth — a loop that reads stale in-memory state and a loop that reads from DB are architecturally different in their recovery semantics. Compaction is modeled as a named "compaction" agent with its own model selection and no tools, keeping context management a visible first-class operation. [Source: raw/code-research-anomalyco-opencode.md]
+
+## Session Persistence Patterns: OpenHands vs. OpenCode
+
+OpenHands and OpenCode represent two distinct approaches to making agent sessions durable across interruptions. OpenHands serializes non-history agent state as pickle-base64 (suitable for arbitrary Python objects) and stores each event as an individual JSON file in a file-backed event store; on restore, the event log is replayed to reconstruct history. OpenCode uses SQLite/Drizzle for structured session and message data, JSON sidecar files for tool outputs and attachments, and git snapshots after each step — providing full time-travel revert capability. Both architectures share a key invariant: the durable store is the authority, and in-memory history is always rebuilt from it rather than being the primary record. This rebuild-from-store pattern makes sessions resumable after crashes, process restarts, or hardware failures without requiring explicit checkpoint coordination. [Source: raw/code-research-all-hands-ai-openhands.md] [Source: raw/code-research-anomalyco-opencode.md]
+
 ## Lessons
 
 - Decomposing work into tractable chunks and using structured artifacts to hand off context between sessions are the two core load-bearing patterns for long-running agents. [Source: raw/anthropic-com-engineering-effective-harnesses-for-long-running-agents.md]
@@ -222,3 +236,5 @@ OpenClaw's Pi harness introduces two production patterns for long-running agent 
 - [raw/anthropic-com-engineering-multi-agent-research-system.md](../raw/anthropic-com-engineering-multi-agent-research-system.md) -- Anthropic, Apr 2026. Multi-agent Research feature: orchestrator-worker pattern, rainbow deployments, subagent output to filesystem, token usage as performance predictor.
 - [raw/code-research-claude-code.md](../raw/code-research-claude-code.md) -- Code research, Apr 2026. 4-layer compaction cascade, forked agent pattern for background work, post-compact file re-injection, circuit breaker on autocompact failures.
 - [raw/code-research-karpathy-autoresearch.md](../raw/code-research-karpathy-autoresearch.md) -- Code research, Apr 2026. "NEVER STOP" directive with human interruption as only termination, git-as-state-machine for interrupt-safe progress.
+- [raw/code-research-all-hands-ai-openhands.md](../raw/code-research-all-hands-ai-openhands.md) -- Code research, Apr 2026. Event-driven callback loop, pending action gate, 5 termination conditions, pickle-base64 session state, file-backed event store, V0 deprecation.
+- [raw/code-research-anomalyco-opencode.md](../raw/code-research-anomalyco-opencode.md) -- Code research, Apr 2026. while(true) with 5 termination paths, max-steps via synthetic assistant prefill, compaction-as-named-agent, SQLite/git-backed session persistence, DB as single source of truth.

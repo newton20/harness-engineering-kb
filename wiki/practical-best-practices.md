@@ -23,9 +23,11 @@ sources:
   - raw/anthropic-com-engineering-multi-agent-research-system.md
   - raw/code-research-claude-code.md
   - raw/code-research-karpathy-autoresearch.md
-source_count: 11
+  - raw/code-research-all-hands-ai-openhands.md
+  - raw/code-research-anomalyco-opencode.md
+source_count: 13
 status: draft
-last_compiled: 2026-04-14
+last_compiled: 2026-04-15
 ---
 
 # Practical Best Practices
@@ -186,6 +188,18 @@ These practices apply beyond deep research -- any agent that gathers context fro
 
 For research and exploration tasks, the recommended search strategy is to start with broad queries that establish the landscape, then progressively narrow based on what was found. Starting narrow risks missing important context; starting broad and filtering is more robust. This mirrors the progressive disclosure principle applied to the agent's own information gathering rather than to the information presented to the agent. [Source: raw/tianpan-co-zh-blog-2026-04-12-deep-research-agents-orchestrating-multi-.md]
 
+## Doom-Loop Detection Variants
+
+Both OpenHands and OpenCode implement explicit detection of stuck-loop conditions, but with distinct intervention strategies. OpenHands maintains a 5-scenario stuck detector covering repeated identical actions, action-error loops, action-observation pairs that cycle, chains of pure errors, and repeated condensation events; when any scenario triggers, the system halts and prompts the user interactively via CLI rather than auto-aborting. OpenCode's detector is simpler but routed differently: three consecutive identical tool calls trigger a permission-system `ask("doom_loop")` event, giving the user three choices — allow, deny, or auto-configure. The key architectural difference is where the decision lands: OpenHands escalates to a human as a hard stop, while OpenCode routes through the same allow/deny/ask flow used for all other permission decisions, keeping doom-loop handling consistent with the rest of the permission model. Neither system attempts to auto-recover without user input. [Source: raw/code-research-all-hands-ai-openhands.md] [Source: raw/code-research-anomalyco-opencode.md]
+
+## Two-Part System Prompt for Cache Efficiency
+
+OpenCode normalizes the system prompt array to exactly two entries on every request: a stable base prompt containing identity and invariant rules, and a variable context entry holding session-specific content such as environment facts, loaded AGENTS.md files, and tool descriptions. This two-entry invariant is enforced regardless of how many sources contribute to the prompt. By keeping the first entry byte-identical across requests, every call gets a cache hit on the base prompt; only the second entry needs fresh caching. The pattern is architecturally similar to Claude Code's `SYSTEM_PROMPT_DYNAMIC_BOUNDARY` split into cacheable prefix and session-specific suffix. For high-volume agent deployments where the base prompt dominates token count, the cache savings from this discipline are significant. [Source: raw/code-research-anomalyco-opencode.md]
+
+## Claims-Based Instruction Deduplication
+
+OpenCode tracks which AGENTS.md files have already been injected into the current session using a per-turn injection registry keyed by file path. Before adding an AGENTS.md file's content to the system prompt, the harness checks whether that file has already been included earlier in the session; if so, it is skipped. This prevents exponential instruction growth in long sessions where many tool calls might each re-trigger AGENTS.md discovery. The pattern generalizes to any harness that dynamically discovers and injects context files: without deduplication, the same file can be injected dozens of times across a long session, silently consuming token budget and potentially confusing the model with repeated identical instructions. [Source: raw/code-research-anomalyco-opencode.md]
+
 ## Summary of Principles
 
 1. Strip everything that is not load-bearing [Source: raw/systematicls-2028814227004395561.md]
@@ -211,6 +225,9 @@ For research and exploration tasks, the recommended search strategy is to start 
 21. Use per-provider schema normalization so tool authors write schemas once (TypeBox) and provider quirks (Gemini, OpenAI strict, xAI) are handled at the normalization layer [Source: raw/code-research-openclaw-openclaw.md]
 22. For multi-provider deployments, implement streaming JSON argument repair to handle provider-specific tool call bugs in the pipeline, not after the fact [Source: raw/code-research-openclaw-openclaw.md]
 23. Implement post-compaction context refresh -- re-inject critical config file sections (AGENTS.md startup/safety rules) after compaction with current-date substitution [Source: raw/code-research-openclaw-openclaw.md]
+24. Implement doom-loop detection and route it through the permission system (allow/deny/ask) rather than auto-aborting -- gives users control without silently stopping work [Source: raw/code-research-all-hands-ai-openhands.md] [Source: raw/code-research-anomalyco-opencode.md]
+25. Normalize system prompt to exactly 2 entries (stable base + variable context) to maximize prompt cache hit rate on the base prefix [Source: raw/code-research-anomalyco-opencode.md]
+26. Track injected instruction files per session turn and deduplicate — prevent exponential token growth from repeated AGENTS.md injections in long sessions [Source: raw/code-research-anomalyco-opencode.md]
 
 ## Related
 
@@ -245,3 +262,5 @@ For research and exploration tasks, the recommended search strategy is to start 
 - [raw/code-research-claude-code.md](../raw/code-research-claude-code.md) -- Code research, Apr 2026. Prompt cache-first architecture with static/dynamic boundary, cache-stable tool ordering, error-as-context pattern.
 - [raw/code-research-karpathy-autoresearch.md](../raw/code-research-karpathy-autoresearch.md) -- Code research, Apr 2026. Minimal-signal extraction via redirect+grep, structural immutability via file separation for tamper-proof evaluation.
 - [raw/code-research-openclaw-openclaw.md](../raw/code-research-openclaw-openclaw.md) -- Code research, Apr 2026. SOUL.md persona pattern, per-provider schema normalization, streaming JSON argument repair, post-compaction context refresh.
+- [raw/code-research-all-hands-ai-openhands.md](../raw/code-research-all-hands-ai-openhands.md) -- Code research, Apr 2026. 5-scenario doom-loop detector with interactive CLI recovery; stuck detection covering repeated actions, action-error cycles, condensation events.
+- [raw/code-research-anomalyco-opencode.md](../raw/code-research-anomalyco-opencode.md) -- Code research, Apr 2026. 3-identical-calls doom-loop detector via permission system; two-entry system prompt normalization for cache efficiency; per-turn AGENTS.md injection deduplication.

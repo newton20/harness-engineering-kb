@@ -14,9 +14,11 @@ sources:
   - raw/arxiv-org-html-2501-09136v4.md
   - raw/code-research-claude-code.md
   - raw/code-research-karpathy-autoresearch.md
-source_count: 4
+  - raw/code-research-all-hands-ai-openhands.md
+  - raw/code-research-anomalyco-opencode.md
+source_count: 6
 status: draft
-last_compiled: 2026-04-14
+last_compiled: 2026-04-15
 ---
 
 # Agentic Design Patterns
@@ -134,12 +136,22 @@ Karpathy's autoresearch demonstrates a pattern at the opposite extreme from Clau
 
 Claude Code's forked agent emerges from source analysis as a fundamental building block for multi-agent work. A fork child inherits the parent's full message history and byte-identical system prompt, sharing the parent's prompt cache prefix so the API call is nearly free for short tasks. This pattern is used pervasively: autocompact forks a summarizer, extractMemories forks a background memory writer, SessionMemory forks a note-taker, and sub-agents can fork with full parent context for "second opinion" tasks. The forked agent pattern sits between a fresh subagent (zero parent context, clean but expensive to reconstruct) and a full context handoff (complete state transfer, which is what fork provides nearly for free via cache sharing). [Source: raw/code-research-claude-code.md]
 
+## Event-Driven vs. Polling Agent Loops
+
+Three distinct loop architectures appear across production agent systems, each with different extension and correctness properties. OpenHands uses a callback-driven pattern: the outer status loop is passive (`while state not in end_states: await asyncio.sleep(1)`), and all actual stepping fires through `on_event → should_step() → agent.step()` callbacks registered on the EventStream. New event types can trigger agent steps without modifying the loop code at all — the architecture is open-closed by design. Claude Code and OpenCode both use imperative `while(true)` loops, but differ in their authority model: Claude Code's loop reads from in-memory state, while OpenCode re-reads from SQLite on each iteration, making the database the canonical authority and giving the loop natural crash-recovery semantics. The callback-driven pattern excels at extensibility (new event types compose cleanly); the DB-authoritative poll loop excels at durability (each iteration starts from a verified-good state). The imperative in-memory loop (Claude Code) optimizes for latency and simplicity at the cost of requiring explicit compaction and state management to remain coherent. [Source: raw/code-research-all-hands-ai-openhands.md] [Source: raw/code-research-anomalyco-opencode.md]
+
+## Condenser-as-Action Pattern
+
+Both OpenHands and OpenCode treat context compaction as a visible, auditable architectural event rather than a hidden side-effect triggered by token count. In OpenHands, the agent returns a `CondensationAction` from `agent.step()` — this action is logged to the EventStream, persisted in the event store, and replayed on session restore, giving condensation the same first-class status as any tool call or observation. The pluggable condenser system has 9 composable implementations (LLM summarizer, no-op, amnesiac, recent-history, llm-and-no-op, summarize-then-forget, and combinations). OpenCode models compaction as a named "compaction" agent with its own model selection and no tools, making it an explicit agent dispatch rather than an inline operation. Both approaches make the context management decision inspectable in logs and auditable in post-mortems — a stark contrast to systems where compaction fires silently based on token thresholds with no trace in the event record. [Source: raw/code-research-all-hands-ai-openhands.md] [Source: raw/code-research-anomalyco-opencode.md]
+
 ## Sources
 
 - [raw/machinelearningmastery-com-the-roadmap-to-mastering-agentic-ai-design-patterns.md](../raw/machinelearningmastery-com-the-roadmap-to-mastering-agentic-ai-design-patterns.md) — Comprehensive roadmap covering ReAct, Reflection, Tool Use, Planning, and Multi-Agent patterns with selection criteria and evaluation guidance
 - [raw/arxiv-org-html-2501-09136v4.md](../raw/arxiv-org-html-2501-09136v4.md) — Survey paper on Agentic RAG covering the integration of autonomous agents into retrieval-augmented generation pipelines
 - [raw/code-research-claude-code.md](../raw/code-research-claude-code.md) — Code research, Apr 2026. Imperative while(true) state machine pattern, forked agent pattern as fundamental building block, tool_use presence as continuation signal.
 - [raw/code-research-karpathy-autoresearch.md](../raw/code-research-karpathy-autoresearch.md) — Code research, Apr 2026. Prose-as-control-flow pattern where the system prompt IS the agent loop, control inversion with LLM as scheduler.
+- [raw/code-research-all-hands-ai-openhands.md](../raw/code-research-all-hands-ai-openhands.md) — Code research, Apr 2026. Callback-driven event loop as alternative to while(true); CondensationAction as first-class event; 9-implementation pluggable condenser system.
+- [raw/code-research-anomalyco-opencode.md](../raw/code-research-anomalyco-opencode.md) — Code research, Apr 2026. DB-authoritative while(true) loop; compaction modeled as a named agent dispatch with its own model selection.
 
 ## Related
 

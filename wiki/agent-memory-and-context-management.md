@@ -20,9 +20,11 @@ sources:
   - raw/code-research-claude-code.md
   - raw/code-research-karpathy-autoresearch.md
   - raw/code-research-openclaw-openclaw.md
-source_count: 9
+  - raw/code-research-all-hands-ai-openhands.md
+  - raw/code-research-anomalyco-opencode.md
+source_count: 11
 status: draft
-last_compiled: 2026-04-14
+last_compiled: 2026-04-15
 ---
 
 # Agent Memory and Context Management
@@ -129,6 +131,28 @@ OpenClaw's **memory flush** is another distinctive pattern: rather than extracti
 
 After compaction, OpenClaw applies a **post-compaction context refresh** that re-reads `AGENTS.md` "Session Startup" and "Red Lines" sections and injects them as a system event with the current date substituted for `YYYY-MM-DD` placeholders. This means the agent will look for today's daily memory file even after a compaction, regardless of what date was in the old summary. The entire memory system is plugin-extensible via a single `registerMemoryCapability()` call that can replace the entire memory subsystem. [Source: raw/code-research-openclaw-openclaw.md]
 
+## OpenHands: Event-Sourced Condenser Architecture
+
+OpenHands implements the most extensive pluggable condenser system found in any open-source agent harness. Nine composable condenser implementations are available: NoOp, ObservationMasking, BrowserOutput, RecentEvents, ConversationWindow, AmortizedForgetting, LLMAttention, LLMSummarizing, and StructuredSummary -- plus a Pipeline condenser that chains them in any order. Each condenser operates on the agent's event view rather than mutating stored history, and any combination can be assembled declaratively. [Source: raw/code-research-all-hands-ai-openhands.md]
+
+A distinctive design decision is the **condenser-returns-action pattern**: when condensation is needed, the agent's `step()` method returns a `CondensationAction` rather than a tool call or message. This makes condensation a first-class, auditable event in the agent's action stream instead of a silent background side-effect. Consumers can observe when condensation occurred, replay history including condensation events, and reason about the agent's context management decisions from the trace alone. [Source: raw/code-research-all-hands-ai-openhands.md]
+
+The underlying persistence layer is an event store where each event is written as an individual JSON file to a FileStore backend (Local, S3, or GCS). Session restore works by replaying all event files in order to rebuild state -- condensation is a view-level operation, not a deletion from storage. This event-sourcing approach means that nothing is ever permanently lost from the record; a fuller view of history can always be reconstructed if needed. [Source: raw/code-research-all-hands-ai-openhands.md]
+
+Condensation triggers follow a dual reactive-plus-proactive pattern. Proactive condensation fires when the agent's view size exceeds a configured `max_size`. Reactive condensation catches `ContextWindowExceededError` from the LLM API when a request is rejected mid-turn. A stuck-loop detector prevents infinite condensation cycles where repeated condensation fails to reduce view size below the threshold. [Source: raw/code-research-all-hands-ai-openhands.md]
+
+One counterintuitive finding from OpenHands: there is no vector search anywhere in the memory pipeline. Microagent triggers use substring matching against file paths and content. The system achieved 77.6% on SWE-Bench without any semantic retrieval -- a practical data point for the "filesystem tools beat specialized memory" argument, at production scale. OpenHands also adds prompt caching support directly in `ConversationMemory`, marking the system message and the last user/tool message as `cache_prompt=True` to maximize Anthropic cache hit rates across turns. [Source: raw/code-research-all-hands-ai-openhands.md]
+
+## OpenCode: Triple Storage and Snapshot Time-Travel
+
+OpenCode uses three orthogonal storage layers with clearly separated concerns. SQLite with Drizzle ORM handles structured relational data: sessions, messages, message parts, and todos. A JSON filesystem layer stores large binary blobs and diffs that would be expensive to put in a relational table. A git bare repository records a snapshot of the working tree after every LLM step. Each layer is optimized for its access pattern, and the combination enables capabilities none of the three could provide alone. [Source: raw/code-research-anomalyco-opencode.md]
+
+The git bare repo is the most novel component: it enables **snapshot-per-step time-travel**. After every step, the harness records git tree hashes alongside the session metadata. Any point in the session timeline can be restored via `SessionRevert`, giving the agent (and the user) a first-class undo system that operates at the granularity of individual LLM turns. This is a fundamentally different approach to session recovery than the event-sourcing model in OpenHands -- OpenCode reconstructs state by resetting git, not by replaying events. [Source: raw/code-research-anomalyco-opencode.md]
+
+Context compaction uses a two-trigger design. Predictive compaction fires before the context is full, based on token counting, so the agent never hits a hard provider rejection in the normal case. Reactive compaction fires when a provider actually rejects a request. Within a compaction event, two-tier reduction applies: pruning erases old tool outputs in-place (cheaper, reversible within the session), and compaction rewrites history via an LLM summarization call (more aggressive, used when pruning is insufficient). One category of tool output is permanently protected from pruning: `PRUNE_PROTECTED_TOOLS = ["skill"]`, ensuring that skill tool results survive any amount of context reduction. [Source: raw/code-research-anomalyco-opencode.md]
+
+Two additional memory patterns are worth noting. AGENTS.md instruction files are tracked per-message via a claims-based deduplication system that prevents the same instruction block from being injected more than once per conversation, keeping context lean without losing coverage. The `TodoWrite` tool is backed by SQL with atomic delete-and-reinsert semantics per session, giving the agent a structured, queryable short-term task list that survives compaction and is isolated per session by design. [Source: raw/code-research-anomalyco-opencode.md]
+
 ## What Survives Compaction Matters
 
 When a context window fills up, something has to give. @systematicls notes that agents are "still atrocious at connecting the dots, filling in the gaps, or making assumptions" -- and that compaction decisions are where this weakness becomes critical. [Source: raw/systematicls-2028814227004395561.md] One of the most important rules to include in CLAUDE.md is a rule on how to deal with grabbing context after compaction: re-reading the task plan and re-reading the relevant files before continuing. [Source: raw/systematicls-2028814227004395561.md]
@@ -145,6 +169,8 @@ If the harness summarizes away a critical constraint ("the client requires Pytho
 - [Agentic Design Patterns](agentic-design-patterns.md) -- Planning and Reflection patterns as they relate to memory management strategies
 - [Multi-Agent Reliability](multi-agent-reliability.md) -- credibility scoring as a memory-layer concern: which retrieved information to trust
 - [Autoresearch and Self-Improvement](autoresearch-and-self-improvement.md) -- git-as-state-machine and results.tsv as memory patterns in autonomous research loops
+- [Long-Running Agent Harnesses](long-running-agent-harnesses.md) -- OpenHands event-driven loop and OpenCode while(true) loop with DB as authority
+- [Tool Design Patterns](tool-design-patterns.md) -- OpenCode fuzzy edit cascade and OpenHands security-risk-as-parameter
 
 ## Open Questions
 
@@ -163,3 +189,5 @@ If the harness summarizes away a critical constraint ("the client requires Pytho
 - [raw/code-research-claude-code.md](../raw/code-research-claude-code.md) -- Code research, Apr 2026. Claude Code's 5-layer memory hierarchy, 4-layer compaction cascade, extractMemories background RAG agent, post-compact file re-injection.
 - [raw/code-research-karpathy-autoresearch.md](../raw/code-research-karpathy-autoresearch.md) -- Code research, Apr 2026. Git-as-experiment-database, outcome-memory separated from code-state via gitignored results.tsv, minimal-signal extraction via grep.
 - [raw/code-research-openclaw-openclaw.md](../raw/code-research-openclaw-openclaw.md) -- Code research, Apr 2026. OpenClaw's 5-system memory architecture, 3-tier hierarchy with dreaming consolidation (light/deep/REM), agentic memory flush, post-compaction context refresh, plugin-extensible memory via registerMemoryCapability().
+- [raw/code-research-all-hands-ai-openhands.md](../raw/code-research-all-hands-ai-openhands.md) -- Code research, Apr 2026. OpenHands' 9-condenser pluggable pipeline, CondensationAction as a first-class stream event, event-sourced FileStore per-event JSON, dual proactive+reactive condensation triggers, no vector search (77.6% SWE-Bench via substring matching), prompt caching in ConversationMemory.
+- [raw/code-research-anomalyco-opencode.md](../raw/code-research-anomalyco-opencode.md) -- Code research, Apr 2026. OpenCode's triple storage (SQLite/Drizzle + JSON filesystem + git bare repo), snapshot-per-step time-travel via SessionRevert, dual predictive+reactive compaction with two-tier pruning/LLM rewrite, PRUNE_PROTECTED_TOOLS=["skill"], claims-based AGENTS.md deduplication, SQL-backed TodoWrite.

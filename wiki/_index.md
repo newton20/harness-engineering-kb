@@ -1,12 +1,12 @@
 ---
 title: "Knowledge Base Index"
 type: index
-generated: 2026-04-14
+generated: 2026-04-15
 ---
 
 # Knowledge Base Index
 
-**13 articles** | Last generated: 2026-04-14
+**13 articles** | Last generated: 2026-04-15
 
 ## Articles
 

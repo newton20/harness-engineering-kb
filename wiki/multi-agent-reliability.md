@@ -12,9 +12,11 @@ sources:
   - raw/anthropic-com-engineering-multi-agent-research-system.md
   - raw/tianpan-co-zh-blog-2026-04-12-deep-research-agents-orchestrating-multi-.md
   - raw/code-research-openclaw-openclaw.md
-source_count: 4
+  - raw/code-research-all-hands-ai-openhands.md
+  - raw/code-research-anomalyco-opencode.md
+source_count: 6
 status: draft
-last_compiled: 2026-04-14
+last_compiled: 2026-04-15
 ---
 
 # Multi-Agent Reliability and Adversary Resistance
@@ -105,6 +107,18 @@ OpenClaw's multi-agent system provides the most concrete production implementati
 
 **Telephone mitigation.** The system uses frozen result capture + direct re-injection into the requester's context (not multi-hop LLM paraphrasing). For intermediate hops (sub-subagent announces), the instruction asks the orchestrator to summarize in its own words -- but when the requester is the main agent, the instruction asks for user-facing conversion. The `dedupeLatestChildCompletionRows()` function prevents duplicate completion events. [Source: raw/code-research-openclaw-openclaw.md]
 
+## OpenHands: Delegate History Scrubbing
+
+OpenHands solves the parent-context-inflation problem in hierarchical delegation by filtering the parent's history view of any events that occurred between an `AgentDelegateAction` and its corresponding `AgentDelegateObservation`. The parent sees only the bookend events — the dispatch and the result — and never sees the child's intermediate actions, observations, or errors. This prevents child work from ballooning the parent's context window, but the signal loss is real: the child's reasoning, intermediate tool calls, and recovery attempts are invisible to the parent. A TODO comment in the codebase explicitly notes that the current scrubbing should eventually be replaced with AI-generated summaries that preserve meaningful signal without full verbatim replay. Additionally, the iteration counter is global across the delegation boundary: a child's steps count against the parent's 500-step cap, meaning there is no per-agent budget isolation. Deep delegation trees can exhaust the iteration budget faster than flat architectures. [Source: raw/code-research-all-hands-ai-openhands.md]
+
+## OpenCode: Mode-Typed Agent Registry and Permission Inheritance
+
+OpenCode classifies all agents into three modes at registration time: `primary` (top-level session), `subagent` (dispatched worker), or `all` (both contexts). This mode typing controls which tools are available to an agent and how its permissions are scoped. Child sessions inherit the parent's permission set but apply scoped denials by default: `todowrite` and recursive task dispatch are denied for subagent sessions, preventing uncontrolled nesting. Subagent sessions are resumable via a stable `task_id`, enabling multi-turn interactions where the orchestrator can send follow-up messages to a running child rather than dispatching a fresh session each time. The permission inheritance model is explicit and auditable — each child session's effective permissions can be inspected as a diff from the parent's. [Source: raw/code-research-anomalyco-opencode.md]
+
+## OpenHands Microagents: Prompt Augmentation, Not Autonomous Agents
+
+Despite their name, OpenHands microagents are not autonomous sub-agents — they are prompt augmentation mechanisms. `KnowledgeMicroagent`, `RepoMicroagent`, and `TaskMicroagent` each operate by injecting additional content into the primary agent's system prompt when triggered: `KnowledgeMicroagent` fires on keyword match in user messages, `RepoMicroagent` reads `.openhands/microagents/repo.md` from the repository root and injects it at session start, and `TaskMicroagent` injects task-specific instructions. None of them issue actions, observe results, or maintain their own state — they are stateless text injectors that extend the primary agent's context. The naming reflects how the term "agent" is overloaded in practice: any configurable system component gets the label, whether or not it acts autonomously. Harness engineers should read "microagent" as "context plugin" in the OpenHands documentation. [Source: raw/code-research-all-hands-ai-openhands.md]
+
 ## Combining Defenses
 
 No single defense mechanism is sufficient. A robust multi-agent system combines multiple layers:
@@ -113,6 +127,8 @@ No single defense mechanism is sufficient. A robust multi-agent system combines 
 2. **Source-level reliability defenses** prevent bad information from corrupting good agents [Source: raw/tianpan-co-zh-blog-2026-04-12-deep-research-agents-orchestrating-multi-.md].
 3. **Production infrastructure** (checkpoints, rainbow deployments, monitoring) prevents operational failures from destroying research state [Source: raw/anthropic-com-engineering-multi-agent-research-system.md].
 4. **Multi-dimensional evaluation** catches failures that any single evaluation method would miss [Source: raw/anthropic-com-engineering-multi-agent-research-system.md].
+5. **History scrubbing with AI summarization** (when available) prevents child context from inflating parent windows while preserving signal [Source: raw/code-research-all-hands-ai-openhands.md].
+6. **Mode-typed agent registries with scoped permission inheritance** make each agent's effective authority explicit and auditable [Source: raw/code-research-anomalyco-opencode.md].
 
 The defense-in-depth approach reflects a fundamental reality: multi-agent systems have a larger attack and failure surface than single-agent systems, and reliability must be engineered at every layer.
 
@@ -122,6 +138,8 @@ The defense-in-depth approach reflects a fundamental reality: multi-agent system
 - [raw/anthropic-com-engineering-multi-agent-research-system.md](../raw/anthropic-com-engineering-multi-agent-research-system.md) — Anthropic's engineering blog on production reliability patterns, evaluation methods, and operational lessons from their multi-agent research system
 - [raw/tianpan-co-zh-blog-2026-04-12-deep-research-agents-orchestrating-multi-.md](../raw/tianpan-co-zh-blog-2026-04-12-deep-research-agents-orchestrating-multi-.md) — Source reliability defenses including multi-source corroboration, source weighting, and contradiction detection
 - [raw/code-research-openclaw-openclaw.md](../raw/code-research-openclaw-openclaw.md) — Code research, Apr 2026. OpenClaw's production multi-agent reliability: frozen result capture, sessions_yield cooperative abort, push-based announce batching, orphan recovery, depth-bounded hierarchy.
+- [raw/code-research-all-hands-ai-openhands.md](../raw/code-research-all-hands-ai-openhands.md) — Code research, Apr 2026. Delegate history scrubbing (bookend-only parent view), global iteration counter across delegation boundary, microagents as prompt augmentation mechanisms (not autonomous agents).
+- [raw/code-research-anomalyco-opencode.md](../raw/code-research-anomalyco-opencode.md) — Code research, Apr 2026. Mode-typed agent registry (primary/subagent/all), permission inheritance with scoped denial, resumable subagent sessions via task_id.
 
 ## Related
 

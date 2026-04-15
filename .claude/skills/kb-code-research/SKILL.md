@@ -283,6 +283,8 @@ Glob: {REPO_PATH}/**/*action*
 Glob: {REPO_PATH}/**/*command*
 Glob: {REPO_PATH}/**/*skill*
 Glob: {REPO_PATH}/**/*plugin*
+Glob: {REPO_PATH}/**/*permission*
+Glob: {REPO_PATH}/**/*security*
 ```
 
 **Memory/state files:**
@@ -295,6 +297,8 @@ Glob: {REPO_PATH}/**/*persist*
 Glob: {REPO_PATH}/**/*dream*
 Glob: {REPO_PATH}/**/*consolidat*
 Glob: {REPO_PATH}/**/*compact*
+Glob: {REPO_PATH}/**/*snapshot*
+Glob: {REPO_PATH}/**/*condenser*
 ```
 
 **Config files:**
@@ -786,7 +790,9 @@ You are a specialist code researcher analyzing {REPO_NAME} for {DIMENSION_NAME}.
 7. Spend your token budget on thorough investigation, not lengthy prose.
 8. Use REPO-RELATIVE paths in all Evidence fields (e.g., `src/agents/loop.ts:42-67`), never full absolute paths.
 9. For large repos (50K+ LOC): prioritize breadth of checklist coverage over exhaustive reading. Do not read test files unless the source file is ambiguous.
-10. Cross-cutting question: What patterns in your dimension also appear in other dimensions?
+10. Cross-cutting question: What patterns in your dimension connect to patterns another specialist might find in the memory, tool, or coordination dimension?
+11. Note any deprecated/legacy markers (e.g., "V0", "scheduled for removal", "legacy") and their implications for the research goal.
+12. For repos with many strategy/implementation variants (e.g., 5+ condenser types, 5+ tool variants), read the abstract base class first, then sample 3-4 representative implementations — do not exhaustively read all.
 
 ## Output Format
 Return your findings as a structured report in this exact format:
@@ -856,7 +862,7 @@ Checklist:
 6. Are there MCP integrations?
 7. What is the tool selection mechanism? (LLM choice, routing logic, hybrid?)
 
-Search patterns: "tool", "function", "schema", "action", "execute", "invoke", "MCP", "retry", "skill", "plugin", "extension", "normalize"
+Search patterns: "tool", "function", "schema", "action", "execute", "invoke", "MCP", "retry", "skill", "plugin", "extension", "normalize", "fuzzy", "replace", "levenshtein", "tolerance", "cascade"
 
 ### Dimension 4: Multi-Agent Coordination
 

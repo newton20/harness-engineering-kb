@@ -21,9 +21,11 @@ sources:
   - raw/code-research-claude-code.md
   - raw/code-research-karpathy-autoresearch.md
   - raw/code-research-openclaw-openclaw.md
-source_count: 10
+  - raw/code-research-all-hands-ai-openhands.md
+  - raw/code-research-anomalyco-opencode.md
+source_count: 12
 status: draft
-last_compiled: 2026-04-14
+last_compiled: 2026-04-15
 ---
 
 # Tool Design Patterns
@@ -138,6 +140,88 @@ OpenClaw draws a sharp architectural distinction between tools and skills. Skill
 
 This aligns with Garry Tan's "thin harness, fat skills" architecture but makes the mechanism concrete: skills live as markdown files in the workspace, are advertised cheaply via a catalog, and are loaded lazily via the model's own tools. The harness stays thin (no skill-specific tools), the skills stay fat (full procedural instructions), and the model mediates the loading decision. This is the first concrete implementation we've documented of the thin-harness/fat-skills pattern at production scale. [Source: raw/code-research-openclaw-openclaw.md]
 
+## Security Risk as Tool Parameter
+
+OpenHands inverts the conventional model for safety checks: rather than the harness classifying each action, the LLM self-labels it. Every executable action in OpenHands carries a mandatory `security_risk: LOW|MEDIUM|HIGH` field that the model must fill in before the action executes. [Source: raw/code-research-all-hands-ai-openhands.md]
+
+The classification is then passed to a pluggable `SecurityAnalyzer` interface -- implementations include Invariant, GraySwan, and a generic LLM-based analyzer -- which can override the model's self-assessment and block the action. This produces two complementary safety signals: the model's first-person judgment about what it is about to do, and an independent classifier's judgment. Either can veto the action. The arrangement is novel because the agent becomes a participant in its own oversight rather than a passive subject of external review. [Source: raw/code-research-all-hands-ai-openhands.md]
+
+## MCP stdio-over-HTTP Proxy in Sandbox
+
+OpenHands solves a distribution problem that affects any sandboxed harness attempting to use MCP: stdio-based MCP servers must run inside the sandbox, but the outer coordinator (which manages the conversation loop) lives outside. OpenHands runs stdio MCP servers inside the Docker action execution server, then wraps them with a FastMCP proxy that exposes them as an HTTP endpoint reachable by the outer coordinator. [Source: raw/code-research-all-hands-ai-openhands.md]
+
+This makes sandboxed MCP servers transparently accessible without breaking the isolation boundary. The pattern generalizes to any architecture where execution is sandboxed but tool interfaces must be accessible from an outer orchestration layer.
+
+## Action-as-Typed-Dataclass with Runtime Reflection
+
+OpenHands defines all agent actions as Python dataclasses, which gives them typed fields, default values, and serialization for free. Dispatch is done by reflection: `getattr(self, action_type)(action)`. This is clean and concise, but it creates a coupling constraint -- the string values in the action-type enum must stay synchronized with the method names on the handler object at runtime. [Source: raw/code-research-all-hands-ai-openhands.md]
+
+The pattern is a good default for harnesses where the action space is stable, but becomes a maintenance hazard in harnesses where actions are added frequently, since a typo or renaming in either the enum or the method silently routes actions to a missing handler.
+
+## Context Condensation as Agent-Callable Tool
+
+OpenHands exposes a `request_condensation` tool that the agent can call proactively to trigger memory compression. Rather than waiting for the harness to detect context overflow and act, the agent can observe its own context load and request compression when it judges it appropriate. [Source: raw/code-research-all-hands-ai-openhands.md]
+
+This is a concrete implementation of the principle that context management can be a deliberate LLM action rather than purely an infrastructure concern (compare with Claude Code's compaction, which is harness-triggered). It treats the agent as a self-aware participant in its own resource management.
+
+## Fuzzy Edit Tolerance: The Nine-Strategy Cascade
+
+OpenCode implements the most sophisticated fuzzy edit matching found in any open harness, using a nine-strategy cascade to apply LLM-generated edits even when they don't exactly match the file contents. The strategies run in order until one succeeds: [Source: raw/code-research-anomalyco-opencode.md]
+
+1. Exact match
+2. Line-trimmed match
+3. Block-anchor match (Levenshtein similarity)
+4. Whitespace-normalized match
+5. Indentation-flexible match
+6. Escape-normalized match
+7. Trimmed-boundary match
+8. Context-aware match
+9. Multi-occurrence match
+
+This cascade makes the edit tool extremely tolerant of LLM formatting drift -- the model does not need to reproduce file content character-for-character to have its edits applied correctly. The practical benefit is fewer failed edits and fewer retry loops, at the cost of more complex harness code.
+
+## Tree-Sitter Bash AST for Permission Detection
+
+When the agent requests permission to run shell commands, OpenCode does not parse the command string with regular expressions. It uses tree-sitter-bash to build an AST of the command, then walks the AST to extract file paths from file-modifying operations, and converts those paths to glob patterns for the permission request. [Source: raw/code-research-anomalyco-opencode.md]
+
+Structural parsing produces more reliable path extraction than string matching -- it handles quoting, variable expansion, and compound commands correctly. The resulting glob patterns give users a precise, readable summary of what files an approved command will touch, rather than requiring them to parse raw shell syntax.
+
+## Model-Gated Tool Selection
+
+OpenCode's tool registry is model-aware: when the active model is GPT-4 family, the harness automatically substitutes `apply_patch` for the standard `edit` and `write` tools. [Source: raw/code-research-anomalyco-opencode.md]
+
+This is a concrete implementation of the observation that different models have different tool aptitudes. Rather than exposing a single tool interface and hoping all models use it equally well, the registry swaps tools based on model identity at registration time. The pattern generalizes: harnesses that support multiple providers should consider maintaining per-model tool variants for operations where model aptitude varies significantly.
+
+## Description-as-Template from .txt Sidecar Files
+
+OpenCode externalizes tool descriptions into separate `.txt` sidecar files with `${variable}` placeholders for runtime substitution. At registration time, the harness reads the sidecar, performs variable substitution, and attaches the result as the tool's description. [Source: raw/code-research-anomalyco-opencode.md]
+
+This separates prompt engineering from code. Tool descriptions can be edited, versioned, and A/B tested without touching the implementation. It also makes the codebase legible: engineers working on tool logic and engineers working on tool descriptions can operate independently. The approach is a lightweight alternative to a full prompt management system for harnesses of moderate complexity.
+
+## The `invalid` Tool as First-Class Error Handler
+
+Both OpenHands and OpenCode register an `invalid` tool as a real, callable tool. When the model calls a tool that does not exist, or when a tool call's arguments fail schema validation, the call is routed to `invalid` rather than raising an exception. `invalid` returns a structured result explaining what went wrong. [Source: raw/code-research-anomalyco-opencode.md]
+
+This converts tool-call failures from control-flow exceptions into ordinary tool results that the model can read and respond to. The model sees the same message-result structure it sees for successful tool calls, which means it can reason about the error using the same inference process it uses for everything else. The pattern extends the error-as-context principle (see "buildTool() Factory and Error-as-Context" above) to the case where the error occurs before the tool even executes.
+
+## Uniform Truncation Middleware
+
+OpenCode wraps every tool with a `Tool.wrap()` middleware that applies output truncation uniformly. When a tool's output exceeds the limit, the truncation hint is agent-aware: if a subagent (explore) is available, it suggests delegating to the subagent; otherwise it suggests using Grep or Read with an offset to access the remaining content. [Source: raw/code-research-anomalyco-opencode.md]
+
+The agent-aware hint is significant. A generic "output truncated" message leaves the model to figure out how to get the rest of the content. A hint that names the specific tool and parameter (e.g., `Read` with `offset: 150`) gives the model an actionable next step, reducing the turn cost of recovering from truncation.
+
+## LSP Integration as a Tool
+
+OpenCode (experimental) exposes nine language server protocol operations as a single tool: `goToDefinition`, `findReferences`, `hover`, `callHierarchy`, `rename`, `codeAction`, `completion`, `diagnostic`, and `format`. [Source: raw/code-research-anomalyco-opencode.md]
+
+LSP integration gives the agent structural code navigation that would otherwise require either shell invocations of analysis tools or direct file reading and AST construction. The fact that it is a single tool with an operation parameter rather than nine separate tools preserves the "fewer tools are better" principle while still exposing the full LSP surface.
+
+## Remote Skill CDN Discovery
+
+OpenCode implements a marketplace-style skill distribution mechanism. `Discovery.pull(url)` fetches an `index.json` from a remote URL listing available skills, caches the index locally, and makes the skills available for loading. This is the CDN model applied to agent capabilities: skill publishers host an index, consumers pull and cache on demand. [Source: raw/code-research-anomalyco-opencode.md]
+
+This extends the skills-as-prompt-injections pattern (see "Skills as Prompt Injections" above) to a distributed setting. The harness stays thin (no built-in domain knowledge), skills stay fat (full procedural instructions), and skill distribution is handled by a simple HTTP pull from a remote index rather than by shipping updated harness versions.
+
 ## Design Principles Summary
 
 The accumulated wisdom on tool design converges on several principles:
@@ -150,6 +234,9 @@ The accumulated wisdom on tool design converges on several principles:
 6. **Use no-op tools for reasoning.** Tools do not have to perform actions to be valuable. Structuring the agent's thought process is a legitimate tool purpose. [Source: raw/Hxlfed14-2028116431876116660.md]
 7. **Iterate on the interface.** The first design of a tool is rarely right. Expect to revise based on how the model actually uses it. As model capabilities change, tools that were once necessary may become constraining. [Source: raw/trq212-2027463795355095314.md]
 8. **Separate interface from execution.** The tool's appearance to the agent and its backend implementation are independent concerns. [Source: raw/0xblacklight-2036534699582255329.md]
+9. **Make agents participants in their own oversight.** Security checks and context management can be deliberate agent actions -- self-labeling risk, requesting condensation -- rather than purely external constraints. [Source: raw/code-research-all-hands-ai-openhands.md]
+10. **Build for formatting drift.** LLMs do not reproduce file content character-for-character. Edit tools need fuzzy matching cascades, not exact-match assumptions. [Source: raw/code-research-anomalyco-opencode.md]
+11. **Route errors to the model, not the exception handler.** An `invalid` tool that catches schema mismatches and unknown tool names produces recoverable, model-readable failures instead of crashes. [Source: raw/code-research-anomalyco-opencode.md]
 
 ## Related
 
@@ -167,6 +254,8 @@ The accumulated wisdom on tool design converges on several principles:
 - How to handle tool overload remains an active disagreement: Manus uses logit masking (all tools loaded, constrain outputs), Cursor uses lazy loading (load tool definitions on demand). Opposite strategies, both work. [Source: raw/Hxlfed14-2028116431876116660.md]
 - When should you build your own harness to control the tool abstraction layer vs. use an off-the-shelf harness? Owning the harness gives you control over the interface-execution separation, but at significant engineering cost. [Source: raw/0xblacklight-2036534699582255329.md]
 - No standard benchmarks exist for comparing harness/tool designs head-to-head. When to share sub-agent state vs. isolate it is still purely empirical. [Source: raw/Hxlfed14-2028116431876116660.md]
+- Agent self-labeling of security risk (OpenHands) vs. external classification: which produces fewer false negatives? The inverted model is novel but unvalidated at scale. [Source: raw/code-research-all-hands-ai-openhands.md]
+- At what point does a fuzzy edit cascade (OpenCode's nine strategies) create more problems than it solves by silently applying edits that don't match intent? [Source: raw/code-research-anomalyco-opencode.md]
 
 ## Sources
 
@@ -180,3 +269,5 @@ The accumulated wisdom on tool design converges on several principles:
 - [raw/code-research-claude-code.md](../raw/code-research-claude-code.md) -- Code research, Apr 2026. Deferred tool loading via ToolSearchTool + tool_reference API type, concurrency partitioning, buildTool() factory, error-as-context pattern, cache-stable tool ordering.
 - [raw/code-research-karpathy-autoresearch.md](../raw/code-research-karpathy-autoresearch.md) -- Code research, Apr 2026. Prose-as-schema tool definition in natural language, deterministic tool sequence, shell commands as tool API.
 - [raw/code-research-openclaw-openclaw.md](../raw/code-research-openclaw-openclaw.md) -- Code research, Apr 2026. Per-provider schema normalization (TypeBox → Gemini/OpenAI/xAI), streaming JSON argument repair, 4-level tool name normalization, skills as prompt injections (not tools), MCP tools as first-class with same normalization pipeline.
+- [raw/code-research-all-hands-ai-openhands.md](../raw/code-research-all-hands-ai-openhands.md) -- Code research, Apr 2026. Security-risk-as-parameter (LLM self-labels risk, pluggable SecurityAnalyzer override), MCP stdio-over-HTTP proxy in Docker sandbox, action-as-typed-dataclass with reflection dispatch, request_condensation as agent-callable context management tool.
+- [raw/code-research-anomalyco-opencode.md](../raw/code-research-anomalyco-opencode.md) -- Code research, Apr 2026. Nine-strategy fuzzy edit replacer cascade, tree-sitter bash AST for permission detection, model-gated tool selection (GPT-4 → apply_patch), description-as-template from .txt sidecar files, invalid tool as first-class error handler, uniform truncation middleware with agent-aware hints, LSP integration as a single multi-operation tool, remote skill CDN discovery.
