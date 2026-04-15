@@ -11,7 +11,9 @@ tags:
 sources:
   - raw/anthropic-com-engineering-claude-code-auto-mode.md
   - raw/simonwillison-net-2025-sep-30-designing-agentic-loops.md
-source_count: 2
+  - raw/code-research-claude-code.md
+  - raw/code-research-openclaw-openclaw.md
+source_count: 4
 status: draft
 last_compiled: 2026-04-13
 ---
@@ -130,6 +132,14 @@ The classifier prompt is a fixed template with three customizable slots: [Source
 
 All three slots ship with conservative defaults. Run `claude auto-mode defaults` to see the full list. [Source: raw/anthropic-com-engineering-claude-code-auto-mode.md]
 
+## Classifier Auto Mode Internals
+
+Claude Code's auto mode replaces manual permission prompts with an LLM classifier, but the full classifier path is not invoked for every action. Fast paths skip the classifier entirely for 20+ safe allowlisted tools — tools that cannot modify state and are therefore pre-approved. Denial tracking enforces circuit-breaker limits: 3 consecutive denials or 20 total denials in a session trigger escalation to a human (or termination in headless mode). An "iron gate" GrowthBook feature flag controls the fail-closed vs. fail-open fallback behavior: when the classifier API is unavailable, this flag determines whether auto mode defaults to blocking all unreviewed actions (fail-closed) or allowing them (fail-open). [Source: raw/code-research-claude-code.md]
+
+## Dangerous Pattern Stripping Before Auto Mode
+
+Before auto mode activates, the harness scans all loaded permission rules for patterns that would effectively bypass the classifier. Dangerous patterns include: tool-wide allows (any rule that grants unconditional access to an entire tool), interpreter prefix patterns (python, node, ruby, ssh — covering 20+ interpreter and shell escape patterns), and explicit escalation commands (eval, exec, sudo). Rules matching any of these patterns are stripped from the in-memory permission context before the session begins. This means rules that users may have added for convenience in non-auto mode are silently removed when auto mode is entered. The stripping happens at the in-memory level and does not modify stored configuration. [Source: raw/code-research-claude-code.md]
+
 ## Deny-and-Continue
 
 When the classifier blocks an action, Claude does not halt and wait for input. The denial comes back as a tool result along with an instruction to find a safer path without trying to route around the block. [Source: raw/anthropic-com-engineering-claude-code-auto-mode.md]
@@ -147,6 +157,10 @@ The classifier runs at both ends of a subagent handoff: [Source: raw/anthropic-c
 **Outbound (delegation)**: Without this check, the subagent's transcript classifier may lack full context to know if the delegated task was originally intended by the user. Inside the subagent, the orchestrator's instruction appears as the user message, so tasks look fully authorized. The check at delegation catches it while it is still recognizable as an agent choice rather than a user request. Can deny. [Source: raw/anthropic-com-engineering-claude-code-auto-mode.md]
 
 **Inbound (return)**: A subagent that was benign at delegation could be compromised mid-run by a prompt injection in content it reads. Before results return to the orchestrator, the classifier reviews the subagent's full action history. If flagged, a security warning is prepended rather than discarding the results. Warns only. [Source: raw/anthropic-com-engineering-claude-code-auto-mode.md]
+
+## Sandbox Security Validation
+
+OpenClaw validates Docker bind-mount configurations before allowing container launches. Host path denylists prevent mounting sensitive system directories. A home-subdirectory denylist specifically blocks `.aws`, `.ssh`, `.docker`, and `.gnupg` from being mounted into the container. Symlink escape hardening resolves the full ancestor chain of any bind-mount path to detect whether a symlink on the host would cause the container to access a location outside the intended mount scope. Network mode blocking prevents containers from joining the host network namespace — a common privilege escalation vector. These checks run before every container launch, not just at plugin install time. [Source: raw/code-research-openclaw-openclaw.md]
 
 ## Assessment
 
@@ -171,3 +185,5 @@ Simon Willison's "Designing agentic loops" (Sep 2025) independently developed a 
 
 - [raw/anthropic-com-engineering-claude-code-auto-mode.md](../raw/anthropic-com-engineering-claude-code-auto-mode.md) -- Anthropic (John Hughes), Mar 2026. Full technical description of auto mode: threat model, two-stage classifier, permission tiers, deny-and-continue, multi-agent handoffs, and performance data.
 - [raw/simonwillison-net-2025-sep-30-designing-agentic-loops.md](../raw/simonwillison-net-2025-sep-30-designing-agentic-loops.md) -- Simon Willison, Sep 2025. YOLO mode risk taxonomy (bad commands, exfiltration, proxy attacks) predating and aligning with Claude Code's auto mode threat model.
+- [raw/code-research-claude-code.md](../raw/code-research-claude-code.md) -- Code research, Apr 2026. Classifier auto mode internals (20+ fast-path allowlisted tools, circuit-breaker denial limits, GrowthBook iron gate flag); dangerous pattern stripping before auto mode entry (tool-wide allows, 20+ interpreter prefixes, eval/exec/sudo).
+- [raw/code-research-openclaw-openclaw.md](../raw/code-research-openclaw-openclaw.md) -- Code research, Apr 2026. Docker sandbox security validation: bind-mount host path denylists, home subdirectory denylists (.aws/.ssh/.docker/.gnupg), symlink escape ancestor resolution, host network mode blocking.

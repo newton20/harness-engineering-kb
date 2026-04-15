@@ -2,11 +2,11 @@
 title: "Code Research: karpathy-autoresearch"
 source: https://github.com/karpathy/autoresearch
 author: "kb-code-research skill"
-date: 2026-04-14
-fetched: 2026-04-14
+date: 2026-04-15
+fetched: 2026-04-15
 type: code-research
 status: raw
-tags: [code-research, autoresearch, self-improvement, experiment-loop, git-as-state]
+tags: [code-research, autoresearch, self-improvement, experiment-loop, git-memory]
 relevance_score: 8
 research_goal: "extract autoresearch loop patterns for trading strategy self-improvement"
 dimensions_analyzed: [architecture, memory, tools]
@@ -16,194 +16,183 @@ dimensions_analyzed: [architecture, memory, tools]
 
 ## Executive Summary
 
-Karpathy's autoresearch is a minimalist autonomous ML research loop where an LLM agent iteratively modifies training code, runs 5-minute experiments, and keeps or discards changes based on a single metric (val_bpb). The entire agent harness is a 115-line markdown file (program.md) — there is no Python orchestrator, no tool API, no formal state machine. Git branches serve as the experiment database, git commits as checkpoints, and git reset as rollback. The most transferable pattern for trading strategy self-improvement is the complete experiment lifecycle: prose-driven loop + git-as-state + fixed-budget evaluation + structural separation of mutable code from protected evaluation harness.
+karpathy-autoresearch is a deliberately minimal autonomous ML research loop: a 115-line markdown "program" (program.md) instructs an LLM agent to iteratively modify a training script, run 5-minute time-boxed experiments, and keep/discard changes via git. This re-run with tuned prompts caught several patterns the original missed: the **deterministic FSM tool selection** (steps 1-9 with LLM judgment only at crash-recovery), the **two-tier error handling** (LLM judgment for experiments + exponential backoff for I/O), **complexity as explicit optimization criterion** (anti-bloat in system prompt), and **metric isolation via immutable oracle** (read-only evaluation function). The strongest patterns for trading strategy self-improvement are: time-boxed experiments as comparison units, git-as-experiment-database with untracked TSV for crash resilience, the stateless agent restart protocol, and the two-level optimization hierarchy (LLM optimizes strategy code, human optimizes program.md).
 
 ## Triage Scorecard
 
 | Dimension | Value |
 |-----------|-------|
 | Repo name | karpathy-autoresearch |
-| Primary language | Python |
-| Size classification | small (~1K LOC) |
-| File count | 2 Python source files + program.md |
-| Last commit | Active (recent PR merge) |
-| Commit frequency | active |
-| README quality | detailed (93 lines) |
-| Relevance to goal | 8/10 — directly implements autonomous research loop with code modification, evaluation, and selection |
-| Agent/harness signals | 20 agent/loop, 37 memory/state, 7 multi-agent |
-| Multi-agent signal count | 7 (below threshold, single-agent system) |
-| Recommended dimensions | Architecture, Memory, Tools (Dim 4 skipped) |
+| Primary language | Python (2 files) |
+| Size classification | tiny (~1K LOC, 4 files) |
+| File count | 4 |
+| Relevance to goal | 8/10 — Directly applicable autonomous self-improvement loop |
+| Multi-agent signal count | 0 (single agent) |
+| Recommended dimensions | Architecture, Memory, Tools (Dim 4 N/A) |
 
 ## Dimension 1: Architecture & Loop Design
 
 ### Summary
-Autoresearch implements a dual-loop architecture: an outer "experiment loop" expressed entirely as prose instructions in program.md (lines 94-112), and an inner training loop in Python (train.py while True at line 543). The LLM is the executor of the outer loop — there is no Python scheduler. Loop termination for the inner loop is wall-clock time (5 minutes fixed budget). The outer loop has no termination criterion — it runs until human interruption. Context management is architectural, not algorithmic: training output is redirected to run.log and only 2 scalar values are extracted via grep.
+Two-level loop: an outer meta-loop in natural language (LOOP FOREVER in program.md) and an inner ML training loop bounded by TIME_BUDGET=300s. The LLM controls the outer loop; Python controls the inner loop with NaN fail-fast. No convergence detection — runs until human interruption. Context managed through strict output filtering: stdout redirect + selective grep.
 
 ### Key Findings
-- **Prose-as-Control-Flow:** The outer experiment loop is a numbered procedure in program.md (lines 94-106). The LLM reads these steps and executes them as its own decision procedure. No Python code drives the outer iteration.
-  - Evidence: `program.md:94-106` — "LOOP FOREVER: 1. Look at the git state... 9. If val_bpb is equal or worse, you git reset back"
-  - Significance: This is the simplest possible harness — the system prompt IS the harness.
-
-- **Control Inversion:** The LLM is the scheduler, state machine, and decision engine. Python (train.py) is just the training worker.
-  - Evidence: `program.md:112` — "NEVER STOP... You are autonomous."
-  - Significance: Maximum model agency. The code is the tool, the model is the operator.
-
-- **Fixed-Budget Evaluation as Convergence Proxy:** Every experiment trains for exactly 5 minutes regardless of model size, batch size, or architecture changes. This makes val_bpb directly comparable across all experiments.
-  - Evidence: `prepare.py:31` — `TIME_BUDGET = 300`; `train.py:603` — `if step > 10 and total_training_time >= TIME_BUDGET: break`
-  - Significance: Eliminates an entire dimension of state (training cost) from the evaluation. For trading, this maps to fixed backtest windows.
-
-- **Minimal-Signal Extraction:** Only 2 lines of output enter the agent's context per experiment via grep.
-  - Evidence: `program.md:100` — `grep "^val_bpb:\|^peak_vram_mb:" run.log`
-  - Significance: Explicit anti-context-bloat pattern. Each experiment adds ~3-5 lines to context instead of 630 lines of training output.
-
-- **No Convergence Detection:** The outer loop runs until human interruption.
-  - Evidence: `program.md:112` — "The loop runs until the human interrupts you, period."
-  - Significance: Deliberate design choice — the system cannot detect when it has exhausted useful mutations.
+- **Hybrid NL + imperative loop:** Outer loop is LOOP FOREVER in prose (steps 1-9); inner loop is `while True:` with time-budget break.
+  - Evidence: `program.md:94-109`, `train.py:543-604`
+- **Context hygiene via output filtering:** `> run.log 2>&1` + `grep "^val_bpb:"` — each experiment adds only 1-2 lines to context.
+  - Evidence: `program.md:99-100`
+- **Warmup step exclusion:** First 10 steps excluded from timing to avoid PyTorch compilation overhead.
+  - Evidence: `train.py:578-579`
+- **LR schedule based on wall-clock progress:** `progress = training_time / TIME_BUDGET` — unusual in ML, consistent with time-budget philosophy.
+  - Evidence: `train.py:518-525`
+- **Two-level optimization:** LLM optimizes train.py; human optimizes program.md.
+  - Evidence: `README.md:14-15`
 
 ### Patterns
-- Prose-as-Control-Flow: agent loop expressed as numbered natural language steps
-- Control Inversion: LLM is the scheduler, code is the worker
-- Fixed-Budget Evaluation: 5-min wall-clock budget makes experiments directly comparable
-- Minimal-Signal Extraction: grep 2 scalars from redirected stdout
-- Crash-as-Data: crashes are first-class outcomes with explicit triage heuristics
+- Time-bounded inner loop (wall-clock, not step count)
+- Context hygiene via stdout redirect + selective grep
+- Git as experiment ledger (keep = advance branch, discard = reset)
+- Two-level optimization with separate owners
+- Fast-fail guardrail (NaN/explosion → exit(1))
+- Never-stop directive for overnight operation
+- Warmup exclusion from timing budget
 
 ## Dimension 2: Memory & State Management
 
 ### Summary
-Autoresearch uses three memory systems, all external to the model: (1) the agent's context window (working memory, reconstructed each loop iteration), (2) results.tsv as a flat-file experiment ledger (deliberately gitignored to separate outcomes from code state), and (3) git commit history on a dedicated branch as the code-state database. There is no vector store, no database, no MemGPT-style archival memory. State persistence relies entirely on git + one untracked file. Model weights are never saved — each experiment starts from random initialization. The "progress" being accumulated is improvement in code quality (the recipe), not in trained weights.
+Entire state strategy is filesystem + git. Three-tier hierarchy: ephemeral run.log, session-level results.tsv (untracked, survives git reset), permanent git branch (best-so-far code). No model checkpoints — weights trained from scratch each run; the code IS the persistent artifact. Designed for stateless agent restarts via deterministic context reconstruction protocol.
 
 ### Key Findings
-- **Git-as-Experiment-Database:** Every git commit before a run is a hypothesis insertion into a content-addressed database. Git reset is the rollback/discard operation. Branch HEAD always points to the current best-performing hypothesis.
-  - Evidence: `program.md:92-108` — "The experiment runs on a dedicated branch... if val_bpb improved, advance the branch... if worse, git reset back"
-  - Significance: Complete, versioned, diffable experiment history with zero additional infrastructure.
-
-- **Outcome-Memory Separated from Code-State:** results.tsv is deliberately untracked (gitignored) to separate what-was-tried-and-its-outcome from the-code-that-worked.
-  - Evidence: `program.md:102` — "do not commit the results.tsv file, leave it untracked by git"
-  - Significance: Clean git history (only kept experiments as commits), comprehensive experiment log (all attempts including failures).
-
-- **Meta-Learning, Not Model Training:** Each run starts from torch.manual_seed(42) random init. No checkpoint saving. Progress = better code, not better weights.
-  - Evidence: `train.py:458` — random init each run
-  - Significance: This is a meta-learning setup. The agent learns a better training algorithm, not a better model.
-
-- **Context-Safe Logging:** stdout redirect + targeted grep prevents context flooding.
-  - Evidence: `program.md:99` — "redirect everything — do NOT use tee or let output flood your context"
-  - Significance: The agent's context window is treated as a scarce resource with explicit architectural protection.
+- **Three file-based memory systems:** run.log (ephemeral), results.tsv (session, untracked), git branch (permanent).
+  - Evidence: `program.md:65-77, 92-109`
+- **Git reset resilience via untracked TSV:** TSV survives `git reset --hard` because it's untracked.
+  - Evidence: `program.md:66`
+- **Stateless agent restart protocol:** Setup section provides deterministic context reconstruction from files + git.
+  - Evidence: `program.md:1-19`
+- **No model checkpoints:** Code is the artifact, not weights. Each experiment trains from scratch.
+  - Evidence: No `torch.save()` in train.py
+- **Agent cannot modify own instructions:** Can modify train.py but not prepare.py or program.md.
+  - Evidence: `program.md:22-29`
 
 ### Patterns
-- Git branches as experiment namespaces
-- Structured stdout as evaluation oracle
-- results.tsv as long-term memory index that git cannot provide
-- Context-safe logging via redirect
+- Git-as-experiment-database with branch HEAD as best-so-far
+- Untracked file as crash-safe experiment ledger
+- Stateless agent restart via file re-read protocol
+- Three-tier memory hierarchy (ephemeral/session/permanent)
+- Infrastructure state in ~/.cache (outside git)
 
 ## Dimension 3: Tool & Action Space Design
 
 ### Summary
-The tool space is maximally simple: 6-8 shell commands (git, edit, uv run, grep, tail) defined entirely in natural language in program.md. There is no formal tool API, no JSON schema, no MCP integration. Tool selection is not an LLM decision — it is a hardcoded sequence in the loop definition. LLM creativity is bottlenecked to a single degree of freedom: what mutation to make to train.py. The mutable/immutable boundary (train.py vs prepare.py) is enforced by natural language contract and file separation, not access control.
+Zero tools defined in code. ~8 implicit OS primitives specified in natural language. Tool selection follows a deterministic FSM (steps 1-9) with LLM judgment only at crash-recovery. The evaluation function is explicitly immutable, preventing metric gaming. Two-tier error handling: LLM judgment for experiment failures, exponential backoff for I/O.
 
 ### Key Findings
-- **Prose-as-Schema:** The entire tool API is natural language in program.md. No JSON schema, no typed interfaces.
-  - Evidence: `program.md:96-104` — numbered steps with inline shell commands
-  - Significance: Any LLM with shell access can participate. Zero tool infrastructure.
-
-- **Structural Immutability via File Separation:** The boundary between mutable (train.py) and immutable (prepare.py) is enforced by physical file separation + natural language rule.
-  - Evidence: `program.md:29` — "Modify prepare.py. It is read-only." Under CANNOT DO list.
-  - Significance: The agent cannot game the metric without violating the read-only contract. For trading: backtest harness must be in a protected file.
-
-- **Metric Oracle in Protected File:** evaluate_bpb lives in prepare.py (off-limits). The agent cannot modify the ground truth.
-  - Evidence: `prepare.py` contains `evaluate_bpb()` function; `program.md:32` — "The evaluate_bpb function in prepare.py is the ground truth metric."
-  - Significance: Tamper-proof evaluation. For trading: Sharpe/PnL calculation must be in the immutable harness, not the mutable strategy.
-
-- **Deterministic Tool Sequence:** The loop defines a strict numbered procedure. The LLM has no choice about which tool to invoke — only what hypothesis to test.
-  - Evidence: `program.md:94-104` — numbered 1-9 steps executed in order
-  - Significance: Tool selection is NOT an LLM decision — it is a hardcoded state machine.
+- **Deterministic FSM tool selection:** Steps 1-9 form fixed protocol; LLM judgment only at crash recovery (step 6).
+  - Evidence: `program.md:94-109`
+  - Significance: More reliable than free-choice tool selection.
+- **Metric isolation via immutable oracle:** evaluate_bpb() in prepare.py is read-only.
+  - Evidence: `prepare.py:343-365`, `program.md:29-30`
+  - Significance: Prevents metric gaming in self-improvement loops.
+- **Complexity as optimization criterion:** "A small improvement from deleting code? Definitely keep."
+  - Evidence: `program.md:37`
+  - Significance: Explicit anti-bloat policy weights simplicity alongside metric.
+- **Two-tier error handling:** LLM judgment for experiments; exponential backoff (5 attempts, 2^n) for I/O.
+  - Evidence: `program.md:101-111`, `prepare.py:66-88`
+- **Convention-based security:** Agent told not to modify prepare.py — no code enforcement.
+  - Evidence: `program.md:28-29`
 
 ### Patterns
-- Shell commands as tool API (no abstraction layer)
-- Log-as-observation (redirect + grep, never direct output)
-- Structural immutability via file separation
-- Metric oracle in protected file
-- Deterministic tool sequence (agent creativity confined to mutation only)
+- Filesystem as universal interface
+- Metric isolation via immutable oracle
+- Time-boxed experiments as comparison units
+- Deterministic FSM with judgment at branch points
+- Complexity as explicit optimization criterion
+- Convention-based security (NL prohibition, not sandbox)
 
 ## Dimension 4: Multi-Agent Coordination
 
-N/A — single-agent system. 7 multi-agent signals found in triage (mostly `subprocess` in prepare.py for data loading), below the threshold of 10. The README mentions running multiple instances on separate branches (`autoresearch/mar5-gpu0`) but coordination is by convention, not by code.
+N/A — single-agent system. Branch naming (`autoresearch/<tag>-gpu0`) hints at designed-for extension via git branch isolation.
 
 ## Cross-Cutting Analysis
 
 ### Contradiction Resolutions
-No cross-dimension contradictions detected. All three dimensions agree on the core architecture.
+No contradictions detected.
 
 ### Cross-Cutting Flows
 
-**Flow 1: The Experiment Lifecycle**
-The full experiment lifecycle spans all three dimensions: program.md defines the prose loop (Dim 1), git + results.tsv provide state persistence (Dim 2), and shell commands provide the tool interface (Dim 3). The lifecycle is completely stateless between iterations — the agent can recover from a context reset by reading git state + results.tsv. Each iteration adds exactly 2 scalar values + 1 TSV row to the agent's working memory.
+**Flow 1: Experiment Lifecycle**
+- Dim 1: Steps 1-9 define the lifecycle FSM
+- Dim 2: run.log (ephemeral) → results.tsv (durable) → git (permanent)
+- Dim 3: Each step uses a specific OS primitive
+- Integrated: The experiment lifecycle IS the harness — loop, memory, and tools are one unified protocol.
+- Significance: For trading: edit strategy.py → run backtest → grep sharpe_ratio → log → git keep/discard.
 
-**Flow 2: The Tamper-Proof Evaluation**
-The evaluation oracle is structurally protected from the agent through file separation (Dim 3), natural language contract (Dim 1), and outcome storage in an untracked file (Dim 2). The agent cannot game the metric without violating multiple constraints simultaneously.
+**Flow 2: Context Hygiene Pipeline**
+- Dim 1: stdout redirect prevents flooding; grep extracts key metrics
+- Dim 2: run.log is buffer; TSV is durable; git log is compressed timeline
+- Dim 3: grep is the critical filter between raw output and agent context
+- Integrated: ~1MB training output → 2 lines of metrics → 1 TSV row. Agent never sees raw logs unless crash.
+- Significance: Essential for any long-running autonomous loop.
 
-### Novelty Assessment
+### Novelty Assessment (vs. first run)
 
 | Finding | Dimension | Status | Notes |
 |---------|-----------|--------|-------|
-| Prose-as-Control-Flow | Dim 1 | NOVEL | No code-level analysis in existing wiki |
-| Fixed-Budget Eval as Convergence Proxy | Dim 1 | NOVEL | Not discussed in any wiki article |
-| Context-safe logging via redirect | Dim 1+2 | NOVEL | Concrete anti-flooding pattern not in wiki |
-| Structural immutability via file separation | Dim 3 | NOVEL | Enforcement mechanism not in wiki |
-| Metric oracle in protected file | Dim 3 | NOVEL | Ground truth protection pattern not in wiki |
-| Outcome-memory separated from code-state | Dim 2 | NOVEL | Deliberate separation not in wiki |
-| Multi-objective optimization (metric + simplicity) | Dim 1 | VARIANT | Wiki discusses eval criteria but not simplicity criterion |
-| Git-as-State-Machine | Dim 2 | VARIANT | Wiki mentions git versioning but not branch-as-namespace |
-| No convergence detection (runs until interrupted) | Dim 1 | KNOWN | Wiki discusses "LOOP FOREVER" pattern |
+| Deterministic FSM tool selection | Dim 3 | NOVEL | New — steps 1-9 as fixed protocol, not identified in first run |
+| Two-tier error handling | Dim 3 | NOVEL | New — prepare.py retry pattern missed by first run |
+| Complexity as optimization criterion | Dim 3 | NOVEL | New — anti-bloat as tool/strategy pattern |
+| Metric isolation via immutable oracle | Dim 3 | NOVEL | New — security framing not in first run |
+| LR schedule based on wall-clock progress | Dim 1 | NOVEL | New — unusual ML pattern |
+| Stateless agent restart protocol | Dim 2 | VARIANT | Refinement of prior finding |
+| Warmup step exclusion from timing | Dim 1 | VARIANT | Refinement of time-budget finding |
+| Time-bounded experiments | Dim 1/3 | KNOWN | Already in KB |
+| Git-as-experiment-database | Dim 2 | KNOWN | Already in KB |
+| Context hygiene via redirect + grep | Dim 1 | KNOWN | Already in KB |
 
-7 NOVEL, 2 VARIANT, 1 KNOWN findings.
+**5 NOVEL, 2 VARIANT, 3 KNOWN — tuned prompts caught 5 new patterns.**
 
 ## Decisions to Adopt
 
-1. **Adopt: Git-branch-as-experiment-namespace** from program.md
-   - What: Each strategy optimization run gets its own branch (`autoresearch/<date>`). Commits = kept hypotheses, reset = discarded.
-   - Why: Complete, versioned, diffable experiment history with zero infrastructure. Branch HEAD always carries the current best strategy.
+1. **Adopt: Deterministic FSM loop with LLM judgment at branch points** from program.md
+   - What: Fixed numbered steps with LLM judgment only at decision points
+   - Why: More reliable than free-choice tool selection
    - Effort: S
-   - Target: Trading harness experiment management
+   - Target: Any self-improvement loop
 
-2. **Adopt: Mutable/immutable file separation for tamper-proof evaluation** from program.md + prepare.py
-   - What: Strategy code (mutable) in one file, backtest harness (immutable) in another. Agent cannot modify the evaluation metric.
-   - Why: Prevents the agent from gaming the metric. The evaluation oracle must be structurally protected.
+2. **Adopt: Metric isolation via immutable oracle** from prepare.py
+   - What: Read-only evaluation function the agent cannot modify
+   - Why: Prevents Goodhart's Law in self-improvement loops
    - Effort: S
-   - Target: Trading harness evaluation subsystem
+   - Target: Trading backtesting harness
 
-3. **Adopt: Fixed-budget evaluation as convergence proxy** from prepare.py TIME_BUDGET
-   - What: Every strategy backtest runs on a fixed time window (e.g., rolling 252-day period). Results are directly comparable.
-   - Why: Eliminates training cost as a variable. Makes all experiments comparable without controlling for compute.
-   - Effort: M
-   - Target: Trading strategy evaluation engine
-
-4. **Adopt: Minimal-signal extraction via targeted parsing** from program.md grep pattern
-   - What: Redirect all backtest output to a log file, extract only 2-3 key metrics (Sharpe, max drawdown, PnL) via grep into the agent's context.
-   - Why: Prevents context flooding. Each experiment adds ~5 lines to context instead of thousands.
+3. **Adopt: Complexity as explicit optimization criterion** from program.md
+   - What: Anti-bloat instructions in system prompt
+   - Why: Prevents strategy bloat in long-running self-improvement
    - Effort: S
-   - Target: Trading harness context management
+   - Target: System prompts for code-modifying agents
 
-5. **Adopt: Untracked experiment ledger (results.tsv pattern)** from program.md
-   - What: Keep an untracked TSV/CSV with all experiment outcomes (kept, discarded, crashed) separate from git history.
-   - Why: Clean git history (only winning strategies as commits) + comprehensive experiment log (all attempts).
+4. **Adopt: Stateless agent restart protocol** from program.md Setup
+   - What: Deterministic context reconstruction from files + git
+   - Why: Seamless recovery from context resets or crashes
    - Effort: S
-   - Target: Trading harness experiment tracking
+   - Target: Any long-running autonomous agent
+
+5. **Adopt: Two-tier error handling** from program.md + prepare.py
+   - What: LLM judgment for strategy failures; exponential backoff for infrastructure failures
+   - Why: Different failure types need different handling
+   - Effort: S
+   - Target: Trading backtesting error handling
 
 ## Evidence Index
 
-Verified:
-- program.md — agent instructions (the harness itself)
-- train.py — mutable training code
-- prepare.py — fixed utilities and evaluation
-- README.md — project documentation
-- .gitignore — tracks what's excluded
-- pyproject.toml — dependencies
-
-Unverified (runtime artifacts, not in static clone):
-- results.tsv — created during experiment execution
-- run.log — created during experiment execution
+```
+Verified: 4 paths (100%)
+  ✓ program.md — outer loop, tools, constraints, system prompt
+  ✓ train.py — inner loop, time budget, fail-fast, GC optimization
+  ✓ prepare.py — data prep, TIME_BUDGET, evaluation function, retry
+  ✓ README.md — overview, multi-agent hints, two-level optimization
+```
 
 ## Sources
 
-- [karpathy/autoresearch](https://github.com/karpathy/autoresearch) — primary source
+- [karpathy-autoresearch](https://github.com/karpathy/autoresearch) — primary source
 - [Harness Engineering KB](../wiki/_index.md) — cross-reference baseline

@@ -157,6 +157,18 @@ The best systems combine both: the coverage checklist provides a quality signal,
 
 Karpathy's autoresearch demonstrates a concrete anti-context-bloat pattern: redirect all program output to a log file, then grep only the key metrics into the agent's context. In autoresearch, each 5-minute training run produces roughly 630 lines of output, but only 2 scalar values (val_bpb and peak_vram_mb) enter the agent's context via `grep "^val_bpb:\|^peak_vram_mb:" run.log`. This adds 3-5 lines per experiment instead of hundreds. The system prompt explicitly warns "do NOT use tee or let output flood your context." The pattern generalizes to any agent that runs evaluation processes: redirect stdout, extract the metrics that matter, discard the rest. [Source: raw/code-research-karpathy-autoresearch.md]
 
+## Complexity as Explicit Optimization Criterion
+
+Karpathy's autoresearch instructs the LLM to treat code complexity as a first-class cost that must be weighed against metric gains: "A 0.001 val_bpb improvement that adds 20 lines of hacky code? Probably not worth it. A 0.001 val_bpb improvement from deleting code? Definitely keep." This anti-bloat policy is enforced as an explicit directive in the system prompt, not as a passive preference. It prevents strategy drift in long-running self-improvement loops: without a complexity penalty, agents tend to accumulate patches and workarounds that individually seem justified but collectively degrade maintainability. By making complexity an explicit optimization criterion alongside the primary metric, the system keeps the mutation search space honest. [Source: raw/code-research-karpathy-autoresearch.md]
+
+## Metric Isolation via Immutable Oracle
+
+The evaluation function in autoresearch's prepare.py is declared read-only by natural language contract — the agent is explicitly told it cannot modify this file. This prevents Goodhart's Law: an agent optimizing for a metric it can also redefine will eventually redefine the metric rather than improving the underlying capability. Structural file separation enforces the boundary between mutable strategy code (train.py) and the protected evaluation oracle (prepare.py). For production deployments, Karpathy's natural language contract should be reinforced by file system permissions or sandboxing — the agent cannot be trusted to honor the read-only constraint under adversarial conditions or in long-running sessions where the original instruction may be compacted away. [Source: raw/code-research-karpathy-autoresearch.md]
+
+## Stateless Agent Restart Protocol
+
+The Setup section of autoresearch's program.md defines a deterministic context reconstruction procedure: read the current branch name, read 3 specific files (program.md, train.py, run.log tail), check the experiment cache. Any new agent instance — including one starting from a blank context after a reset — can resume seamlessly by following these steps. The procedure is designed for LLM context resets: it assumes nothing is in working memory and everything must be re-derived from durable state. This is a concrete implementation of the "stateless agent" principle: the agent's effective state is always reconstructible from artifacts in the repository, not from conversation history. [Source: raw/code-research-karpathy-autoresearch.md]
+
 ## Structural Immutability via File Separation
 
 A related autoresearch pattern: enforce the boundary between mutable strategy code and protected evaluation harness through physical file separation. In autoresearch, train.py is mutable (the agent can edit it freely), while prepare.py containing the evaluation function is read-only by natural language contract. The agent cannot game the metric without violating the read-only rule. This is not access control -- it is a structural design decision where the evaluation oracle lives in a file the agent is instructed never to modify. For any self-improving agent system, the backtest harness or evaluation function must be structurally separated from the code the agent is allowed to mutate. [Source: raw/code-research-karpathy-autoresearch.md]
@@ -228,6 +240,9 @@ OpenCode tracks which AGENTS.md files have already been injected into the curren
 24. Implement doom-loop detection and route it through the permission system (allow/deny/ask) rather than auto-aborting -- gives users control without silently stopping work [Source: raw/code-research-all-hands-ai-openhands.md] [Source: raw/code-research-anomalyco-opencode.md]
 25. Normalize system prompt to exactly 2 entries (stable base + variable context) to maximize prompt cache hit rate on the base prefix [Source: raw/code-research-anomalyco-opencode.md]
 26. Track injected instruction files per session turn and deduplicate — prevent exponential token growth from repeated AGENTS.md injections in long sessions [Source: raw/code-research-anomalyco-opencode.md]
+27. Treat code complexity as an explicit optimization criterion alongside the primary metric — a small improvement that adds hacky code may not be worth it; a small improvement from deleting code usually is [Source: raw/code-research-karpathy-autoresearch.md]
+28. Isolate the evaluation oracle from mutable strategy code via physical file separation; reinforce with file permissions or sandboxing rather than relying on natural language read-only contracts [Source: raw/code-research-karpathy-autoresearch.md]
+29. Define a stateless restart protocol (read branch, read key files, check cache) so any new agent instance can reconstruct working context without relying on conversation history [Source: raw/code-research-karpathy-autoresearch.md]
 
 ## Related
 

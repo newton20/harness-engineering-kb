@@ -22,7 +22,8 @@ sources:
   - raw/code-research-openclaw-openclaw.md
   - raw/code-research-all-hands-ai-openhands.md
   - raw/code-research-anomalyco-opencode.md
-source_count: 11
+  - raw/code-research-666ghj-mirofish.md
+source_count: 12
 status: draft
 last_compiled: 2026-04-15
 ---
@@ -53,6 +54,16 @@ The key insight is that the agent itself manages transitions between these tiers
 Source code analysis of Claude Code reveals the most complex memory architecture in any open agent harness: five distinct memory systems operating in parallel. These are: (1) a CLAUDE.md hierarchy with 6 priority levels from managed to local, providing layered instructions the agent cannot modify; (2) a memdir auto-memory system with a MEMORY.md index and individual topic files in YAML frontmatter that the agent CAN write to; (3) an extractMemories background forked agent that proactively runs after each turn, using a side-query with Sonnet to rank relevance of existing memories and write/edit topic files; (4) SessionMemory, which maintains structured mid-session running notes across 8 sections; and (5) prompt history persisted as JSONL files that the agent can grep for past interactions. Each layer has different scope, persistence, and write permissions. [Source: raw/code-research-claude-code.md]
 
 Claude Code manages context overflow through a 4-layer compaction cascade: (1) snip (drop oldest messages), (2) microcompact (clear old tool_result bodies), (3) API-level context management (server-side clearing), and (4) autocompact (a forked agent that produces a structured 9-section summary). All four layers can fire in the same iteration. Critically, after autocompact, up to 5 recently-read files (within a 50K token budget, 5K per file) are re-injected as attachments, and skill content intentionally survives compaction. This post-compact file restore ensures the agent does not lose active working context during long coding sessions. [Source: raw/code-research-claude-code.md]
+
+## Claude Code Memory Design Details
+
+### Memory Aging: Staleness-as-Prose
+
+Claude Code's `memdir/memoryAge.ts` injects staleness warnings as pre-computed human-readable prose rather than raw timestamps. The rationale is explicit in the source: "the model is poor at date arithmetic." Warnings produced by this module say things like "claims about code behavior or file:line citations may be outdated." By translating a timestamp into a pre-evaluated natural-language warning, the harness operationalizes a known model weakness at the layer where it can be addressed -- the harness -- rather than relying on the model to correctly compute elapsed time at reasoning time. [Source: raw/code-research-claude-code.md]
+
+### Formal Memory Type Taxonomy
+
+Claude Code defines four memory content types for memdir topic files -- `user`, `feedback`, `project`, and `reference` -- each with XML-structured guidance in the system prompt for when and how to write them. A notable design constraint on the `feedback` type: it must record both confirmations AND corrections. Recording only corrections causes the model to "grow overly cautious" over time, as the stored signal is negatively skewed. The `project` type requires converting relative dates to absolute dates at write time, making memories time-anchored rather than relative to an unstated "now." [Source: raw/code-research-claude-code.md]
 
 ## Autoresearch: Git as Memory and Minimal-Signal Context Management
 
@@ -119,6 +130,10 @@ His core arguments:
 
 Gu's proposed architecture has three layers: work apps as the source of truth, a file layer for hot access metadata and base instructions, and a database as the graph storing derived information, structure, relationships, and dependency chains. [Source: raw/kevingu-2031889622385729730.md]
 
+## MiroFish: Temporal Fact Lifecycle with Graph Edges
+
+MiroFish's memory architecture tracks fact validity explicitly at the graph-edge level. Each edge carries three timestamps: `valid_at` (when the fact became true), `invalid_at` (when it was superseded), and `expired_at` (when it was archived). The query result type `PanoramaResult` separates `active_facts` from `historical_facts`, allowing the agent to reason over both current state and past-state snapshots within the same response. This enables time-aware reasoning over an evolving world state -- a significant step beyond systems that store facts without provenance or lifespan. [Source: raw/code-research-666ghj-mirofish.md]
+
 ## OpenClaw: Autonomous Memory Consolidation via "Dreaming"
 
 OpenClaw implements the most sophisticated autonomous memory management system discovered in any open-source agent harness. Its memory architecture operates across 5 parallel systems: in-context workspace files (MEMORY.md, SOUL.md, daily files), a SQLite+sqlite-vec vector store for hybrid FTS+vector search, an external QMD binary as an alternative semantic search backend, session transcript JSONL files indexed into the vector store, and per-agent sessions.json metadata with compaction checkpoints. [Source: raw/code-research-openclaw-openclaw.md]
@@ -126,6 +141,14 @@ OpenClaw implements the most sophisticated autonomous memory management system d
 The most novel pattern is the **dreaming system** -- three cron-scheduled phases of autonomous background memory consolidation inspired by sleep neuroscience. Light dreaming (every 6 hours) performs recency-based deduplication of short-term memory fragments. Deep dreaming (nightly at 3am) promotes high-recall short-term fragments into durable long-term memory, using configurable thresholds (`minRecallCount: 3`, `minUniqueQueries: 3`, `recencyHalfLifeDays: 14`). REM dreaming (weekly) synthesizes patterns across all memory sources. A `short-term-recall.json` file tracks recall frequency candidates for promotion. [Source: raw/code-research-openclaw-openclaw.md]
 
 This is a MemGPT-inspired hierarchy, but with a critical difference: promotion between tiers is fully autonomous and background-scheduled, not driven by explicit agent API calls. The agent is not aware of the tier boundary -- the harness manages it silently. This contrasts with MemGPT where the agent itself manages transitions between tiers.
+
+### Deep Recovery Self-Healing
+
+OpenClaw's deep dreaming phase includes a self-healing recovery mechanism that fires when memory health drops below 35%. This triggers a re-examination of the previous 30 days of memory candidates for promotion. If a candidate meets a 97% confidence threshold it is auto-promoted to long-term memory without further human or agent intervention. This loop prevents "promotion starvation" -- a failure mode where short-term fragments never reach long-term storage because the normal nightly promotion pass consistently falls short of threshold. The health metric itself serves as the circuit breaker; recovery only fires when systemic degradation is detected, not after every failed candidate. [Source: raw/code-research-openclaw-openclaw.md]
+
+### Corpus Self-Ingestion Detection
+
+OpenClaw's `dreaming-repair.ts` includes logic to detect a failure mode unique to cyclic LLM read/write systems: when the LLM's own narrative generation output has leaked back into the corpus as if it were a new memory. The detector identifies corrupted files where auto-generated narrative prose was written to a memory location. Rather than deleting these files, the harness archives them -- preserving a record of the contamination event for post-mortem analysis. This is a self-protective measure against the feedback loop where an LLM reads its own prior outputs and re-ingests them as facts. [Source: raw/code-research-openclaw-openclaw.md]
 
 OpenClaw's **memory flush** is another distinctive pattern: rather than extracting key facts via a simple append operation, the harness spawns a complete embedded Pi agent turn with `trigger: "memory"` whose sole job is to compose memory content. The LLM decides *what* to remember, but the harness constrains *where* it writes (only `memory/YYYY-MM-DD.md`). This fires at a token threshold before compaction, ensuring important context is persisted before summarization discards it. [Source: raw/code-research-openclaw-openclaw.md]
 
@@ -191,3 +214,4 @@ If the harness summarizes away a critical constraint ("the client requires Pytho
 - [raw/code-research-openclaw-openclaw.md](../raw/code-research-openclaw-openclaw.md) -- Code research, Apr 2026. OpenClaw's 5-system memory architecture, 3-tier hierarchy with dreaming consolidation (light/deep/REM), agentic memory flush, post-compaction context refresh, plugin-extensible memory via registerMemoryCapability().
 - [raw/code-research-all-hands-ai-openhands.md](../raw/code-research-all-hands-ai-openhands.md) -- Code research, Apr 2026. OpenHands' 9-condenser pluggable pipeline, CondensationAction as a first-class stream event, event-sourced FileStore per-event JSON, dual proactive+reactive condensation triggers, no vector search (77.6% SWE-Bench via substring matching), prompt caching in ConversationMemory.
 - [raw/code-research-anomalyco-opencode.md](../raw/code-research-anomalyco-opencode.md) -- Code research, Apr 2026. OpenCode's triple storage (SQLite/Drizzle + JSON filesystem + git bare repo), snapshot-per-step time-travel via SessionRevert, dual predictive+reactive compaction with two-tier pruning/LLM rewrite, PRUNE_PROTECTED_TOOLS=["skill"], claims-based AGENTS.md deduplication, SQL-backed TodoWrite.
+- [raw/code-research-666ghj-mirofish.md](../raw/code-research-666ghj-mirofish.md) -- Code research, Apr 2026. MiroFish's Zep graph edges with valid_at/invalid_at/expired_at timestamps, PanoramaResult separating active_facts from historical_facts for time-aware reasoning.

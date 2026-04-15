@@ -17,7 +17,7 @@ sources:
   - raw/code-research-claude-code.md
 source_count: 6
 status: draft
-last_compiled: 2026-04-14
+last_compiled: 2026-04-15
 ---
 
 Claude Code is Anthropic's coding agent and one of the most extensively analyzed agent harnesses in production. After Anthropic accidentally shipped the entire source code to the npm registry on March 31, 2026 (512,000 lines across 55 directories and 331 modules), the community performed deep architectural analysis. [Source: raw/rohit4verse-2041548810804211936.md] The design reflects a consistent philosophy: keep the harness simple, give the model control, and let the scaffolding shrink as models improve. Claude Code is built on the Claude Agent SDK.
@@ -160,6 +160,14 @@ Claude Code supports unlimited conversation length through a cascade of compacti
 
 The hierarchy matters: cheapest strategy runs first, most expensive fires only when nothing else works. Microcompact and snip handle a large percentage of cases with zero model calls. [Source: raw/rohit4verse-2041548810804211936.md]
 
+### 6-Layer Compaction Pipeline (Revised Taxonomy)
+
+Re-run source analysis reveals the compaction stack is more precisely described as 6 layers rather than 4. The full sequence from lightest to heaviest: (1) **snip** -- removes oldest history slices; (2) **microcompact** -- has three internal sub-paths: time-based (clears old tool results beyond a time threshold), cached (clears results where cache points remain valid), and legacy-removed (clears results for tools that no longer exist); (3) **context collapse** -- runs BEFORE autocompact to consolidate redundant assistant turns and preserve granularity in the remaining history; (4) **autocompact** -- has two backends: session memory (reads the existing session-memory file with zero API calls if the background SessionMemory fork has already run) or legacy summarization (spawns a forked agent to produce the 9-section summary); (5) **blocking limit** -- hard ceiling that raises an error if the previous layers were insufficient; (6) **reactive compact** -- fires after a live 413 rejection from the API as last-resort recovery. [Source: raw/code-research-claude-code.md]
+
+### Asymmetric Tool Clearing in Microcompact
+
+Microcompact does not clear all tool results uniformly. Write-tool history (FileEdit, FileWrite) is never cleared, even when other tool results are evicted. Read-tool results (Read, Grep, Bash output, WebFetch) are cleared first because they are reconstructable -- the agent can re-read any file or re-run any search. The write-tool exemption preserves the audit trail of what the agent actually changed, which cannot be reconstructed from the filesystem alone. This asymmetry means the compaction policy encodes domain knowledge about which history is recoverable versus which is authoritative. [Source: raw/code-research-claude-code.md]
+
 ## Progressive Disclosure
 
 Progressive disclosure -- borrowed from UI/UX design (John Carroll, IBM Research, 1980s; popularized by Jakob Nielsen in the 1990s) -- is the principle of showing only what is needed now and revealing complexity on demand. [Source: raw/Hxlfed14-2028116431876116660.md]
@@ -186,6 +194,10 @@ Claude Code runs a seven-stage permission pipeline rather than a binary allow/de
 
 Hooks serve as the escape hatch: a script receives tool call details and returns `{"decision": "approve"}` or `{"decision": "block"}`. Organizations build custom guardrails: block destructive operations, post to Slack on completion, run linters after every file write. No source modifications required. [Source: raw/rohit4verse-2041548810804211936.md]
 
+### Permission Denial Tracking as Circuit Breaker
+
+In auto mode (headless), Claude Code tracks classifier-level permission denials as a circuit breaker signal. Three consecutive denials OR twenty total denials trigger an `AbortError` that terminates the session. This creates a direct, measurable path from classifier behavior to loop termination: a model that repeatedly attempts disallowed tool calls will cause the harness to halt rather than loop indefinitely. The two thresholds -- consecutive (rapid failure burst) and cumulative (slow-burn pattern) -- catch different failure modes: a stuck agent vs. a persistently policy-violating agent. [Source: raw/code-research-claude-code.md]
+
 ## The Error Recovery System
 
 The retry system (services/api/withRetry.ts, 823 lines) handles every error class with specific recovery paths: [Source: raw/rohit4verse-2041548810804211936.md]
@@ -211,6 +223,8 @@ Sub-agents that modify code get their own **git worktree** -- one agent, one wor
 Fork children **inherit the parent's full conversation history** and byte-identical system prompt. The fork builds an API request prefix that maximizes prompt cache hits -- making the fork nearly free for short tasks. Fork children cannot themselves fork (recursive prevention via both context-object check and message-history scan). Communication back to the parent is via tool_result (sync) or `<task-notification>` XML injected as a user-role message (async). [Source: raw/code-research-claude-code.md]
 
 The forked agent pattern is Claude Code's fundamental building block for background work: autocompact forks a summarizer, extractMemories forks a background memory writer, SessionMemory forks a note-taker, and sub-agents can fork with full parent context. All share the parent's prompt cache prefix. [Source: raw/code-research-claude-code.md]
+
+**Fork mode as a fourth multi-agent mode.** Re-run analysis classifies Fork as a distinct fourth mode alongside Standard Subagents, Swarm Teammates, and Coordinator Mode. Its defining property is byte-exact conversation history inheritance: the child receives the parent's full message list unchanged, which maximizes prompt cache hits and makes the fork nearly free for short background tasks. The anti-recursion guard operates at two levels: a context-object flag (`isFork`) prevents a fork from forking, and a message-history scan detects the `<fork-boilerplate>` tag to catch cases where the flag is absent (e.g., a fork created from a restored session). [Source: raw/code-research-claude-code.md]
 
 ### Swarm Teammates (experimental, `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`)
 Long-lived peer agents running in separate OS processes (tmux panes or iTerm2 split panes). Communication via file-based mailbox at `~/.claude/teams/{team}/inboxes/{name}.json` with proper-lockfile locking. Shared task list at `~/.claude/tasks/{team-name}/` with ownership via `TaskUpdate({owner: name})`. [Source: raw/code-research-claude-code.md]
@@ -273,4 +287,4 @@ Several principles emerge from Claude Code's architecture:
 - [raw/rohit4verse-2041548810804211936.md](../raw/rohit4verse-2041548810804211936.md) -- Rohit (@rohit4verse), Apr 2026. Deep source code analysis of Claude Code's 331-module architecture: async generator loop, compaction, permissions, sub-agents, extensibility.
 - [raw/himanshustwts-2038924027411222533.md](../raw/himanshustwts-2038924027411222533.md) -- Himanshu (@himanshustwts), Mar 2026. Memory architecture analysis: index-not-storage, autoDream, staleness, skeptical retrieval.
 - [raw/idoubicc-2039006326882546141.md](../raw/idoubicc-2039006326882546141.md) -- Idoubi (@idoubicc), Mar 2026. Open-agent-sdk: open-source Claude Code logic extraction for cloud-scale agent deployment.
-- [raw/code-research-claude-code.md](../raw/code-research-claude-code.md) -- First-hand source code analysis via /kb-code-research skill, Apr 2026. Deep 4-dimension analysis: imperative loop architecture, 5 memory systems, 50+ tools with deferred loading, 3 multi-agent modes, prompt cache-first design.
+- [raw/code-research-claude-code.md](../raw/code-research-claude-code.md) -- First-hand source code analysis via /kb-code-research skill, Apr 2026 (re-run). Deep analysis: imperative loop architecture, 5 memory systems, 6-layer compaction cascade, 50+ tools with deferred loading, 4 multi-agent modes (including Fork), permission denial circuit breaker, asymmetric tool clearing, prompt cache-first design.

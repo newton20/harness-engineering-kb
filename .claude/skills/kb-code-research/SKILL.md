@@ -274,6 +274,9 @@ Glob: {REPO_PATH}/**/*train*
 Glob: {REPO_PATH}/**/*eval*
 Glob: {REPO_PATH}/**/*experiment*
 Glob: {REPO_PATH}/**/*research*
+Glob: {REPO_PATH}/**/*cron*
+Glob: {REPO_PATH}/**/*schedule*
+Glob: {REPO_PATH}/**/*phase*
 ```
 
 **Tool files:**
@@ -285,6 +288,8 @@ Glob: {REPO_PATH}/**/*skill*
 Glob: {REPO_PATH}/**/*plugin*
 Glob: {REPO_PATH}/**/*permission*
 Glob: {REPO_PATH}/**/*security*
+Glob: {REPO_PATH}/**/*provider*
+Glob: {REPO_PATH}/**/*registry*
 ```
 
 **Memory/state files:**
@@ -299,6 +304,8 @@ Glob: {REPO_PATH}/**/*consolidat*
 Glob: {REPO_PATH}/**/*compact*
 Glob: {REPO_PATH}/**/*snapshot*
 Glob: {REPO_PATH}/**/*condenser*
+Glob: {REPO_PATH}/**/*repair*
+Glob: {REPO_PATH}/**/*recover*
 ```
 
 **Config files:**

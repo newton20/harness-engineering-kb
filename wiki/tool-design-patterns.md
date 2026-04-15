@@ -23,7 +23,8 @@ sources:
   - raw/code-research-openclaw-openclaw.md
   - raw/code-research-all-hands-ai-openhands.md
   - raw/code-research-anomalyco-opencode.md
-source_count: 12
+  - raw/code-research-666ghj-mirofish.md
+source_count: 13
 status: draft
 last_compiled: 2026-04-15
 ---
@@ -222,6 +223,22 @@ OpenCode implements a marketplace-style skill distribution mechanism. `Discovery
 
 This extends the skills-as-prompt-injections pattern (see "Skills as Prompt Injections" above) to a distributed setting. The harness stays thin (no built-in domain knowledge), skills stay fat (full procedural instructions), and skill distribution is handled by a simple HTTP pull from a remote index rather than by shipping updated harness versions.
 
+## Minimum Tool-Call Enforcement
+
+MiroFish's ReportAgent enforces a hard floor before accepting a Final Answer: at least 3 tool calls must be made per reporting section, with a maximum of 5. Unused-tool hints are injected into the agent's context to actively nudge it toward tool diversity — steering it away from reusing the same tool repeatedly. This is a quality guardrail that forces evidence breadth before synthesis: the agent cannot shortcut to a conclusion without demonstrating it has gathered sufficient evidence from multiple angles. [Source: raw/code-research-666ghj-mirofish.md]
+
+## Asymmetric Tool Clearing in Compaction
+
+Claude Code's microcompaction applies asymmetric clearing to read and write tools. Read-tool results (Bash, Glob, Grep, FileRead) are cleared from context during compaction because they can always be re-fetched. Write-tool history (FileEdit, FileWrite, NotebookEdit) is never cleared, because losing those records would make it impossible to audit what changes were made to the codebase. This asymmetry reflects a key invariant: reads are reproducible, writes are not. The practical consequence is that compaction can safely shrink context from read-heavy exploration phases without sacrificing the immutable audit trail of mutations. [Source: raw/code-research-claude-code.md]
+
+## Permission Rule DSL
+
+Claude Code's permission system uses a `ToolName(content)` grammar where parentheses in content are escaped. Shell matching operates at three tiers: exact literal match, prefix match (e.g., `npm:*` matches any npm subcommand), and wildcard match (e.g., `git *` compiles to a regex with dotAll mode to handle heredoc arguments spanning multiple lines). The system includes shadowed rule detection: if a broad deny rule would make a specific allow rule unreachable, a warning is emitted at load time. This prevents silent misconfiguration where a developer adds a targeted carve-out that a broader deny rule silently overrides. [Source: raw/code-research-claude-code.md]
+
+## Plugin Security Scanning
+
+OpenClaw gates every plugin install through 4 scan functions before the plugin code is allowed to run. Results are cached in an mtime-keyed file cache with a 5000-entry capacity, making re-checks on unchanged files nearly free. Prompt injection detection uses 13 patterns covering classic attack vectors. The mtime key invalidates cache entries automatically whenever a plugin file is modified, so the security scan is never skipped on updated plugins while still avoiding redundant scans on unchanged ones. [Source: raw/code-research-openclaw-openclaw.md]
+
 ## Design Principles Summary
 
 The accumulated wisdom on tool design converges on several principles:
@@ -271,3 +288,4 @@ The accumulated wisdom on tool design converges on several principles:
 - [raw/code-research-openclaw-openclaw.md](../raw/code-research-openclaw-openclaw.md) -- Code research, Apr 2026. Per-provider schema normalization (TypeBox → Gemini/OpenAI/xAI), streaming JSON argument repair, 4-level tool name normalization, skills as prompt injections (not tools), MCP tools as first-class with same normalization pipeline.
 - [raw/code-research-all-hands-ai-openhands.md](../raw/code-research-all-hands-ai-openhands.md) -- Code research, Apr 2026. Security-risk-as-parameter (LLM self-labels risk, pluggable SecurityAnalyzer override), MCP stdio-over-HTTP proxy in Docker sandbox, action-as-typed-dataclass with reflection dispatch, request_condensation as agent-callable context management tool.
 - [raw/code-research-anomalyco-opencode.md](../raw/code-research-anomalyco-opencode.md) -- Code research, Apr 2026. Nine-strategy fuzzy edit replacer cascade, tree-sitter bash AST for permission detection, model-gated tool selection (GPT-4 → apply_patch), description-as-template from .txt sidecar files, invalid tool as first-class error handler, uniform truncation middleware with agent-aware hints, LSP integration as a single multi-operation tool, remote skill CDN discovery.
+- [raw/code-research-666ghj-mirofish.md](../raw/code-research-666ghj-mirofish.md) -- Code research, Apr 2026. Minimum tool-call enforcement (3-call floor, 5-call ceiling, unused-tool hints), plugin security scanning with mtime-keyed cache.

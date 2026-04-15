@@ -16,7 +16,8 @@ sources:
   - raw/code-research-karpathy-autoresearch.md
   - raw/code-research-all-hands-ai-openhands.md
   - raw/code-research-anomalyco-opencode.md
-source_count: 6
+  - raw/code-research-666ghj-mirofish.md
+source_count: 7
 status: draft
 last_compiled: 2026-04-15
 ---
@@ -140,6 +141,14 @@ Claude Code's forked agent emerges from source analysis as a fundamental buildin
 
 Three distinct loop architectures appear across production agent systems, each with different extension and correctness properties. OpenHands uses a callback-driven pattern: the outer status loop is passive (`while state not in end_states: await asyncio.sleep(1)`), and all actual stepping fires through `on_event → should_step() → agent.step()` callbacks registered on the EventStream. New event types can trigger agent steps without modifying the loop code at all — the architecture is open-closed by design. Claude Code and OpenCode both use imperative `while(true)` loops, but differ in their authority model: Claude Code's loop reads from in-memory state, while OpenCode re-reads from SQLite on each iteration, making the database the canonical authority and giving the loop natural crash-recovery semantics. The callback-driven pattern excels at extensibility (new event types compose cleanly); the DB-authoritative poll loop excels at durability (each iteration starts from a verified-good state). The imperative in-memory loop (Claude Code) optimizes for latency and simplicity at the cost of requiring explicit compaction and state management to remain coherent. [Source: raw/code-research-all-hands-ai-openhands.md] [Source: raw/code-research-anomalyco-opencode.md]
 
+## Deterministic FSM with LLM Judgment at Branch Points
+
+Karpathy's autoresearch defines its experiment loop as a numbered 9-step fixed protocol in program.md. The sequence — read branch, write mutation, run training, evaluate metric, commit or revert — is deterministic: every iteration follows the same numbered steps in the same order. LLM judgment is invoked only at specific branch points, most notably crash recovery: when a training run fails, the agent decides whether to diagnose and retry or to revert to the prior commit. This hybrid is more reliable than pure free-choice ReAct because the vast majority of the loop is not subject to LLM variance. The LLM's creative freedom is deliberately confined to a single degree of freedom (what mutation to make) and a single recovery decision (how to handle a crash). [Source: raw/code-research-karpathy-autoresearch.md]
+
+## Round-as-Clock: Time-Driven Environment Tick
+
+MiroFish's simulation loop is a deterministic `for round in range(total_rounds)` where each increment maps to a fixed number of simulated minutes. Agents are not selected on a fixed schedule — they are selected stochastically each round based on per-agent `activity_level` and `active_hours` parameters. The environment advances time; agents respond to it. This is not an agent-driven loop — agents do not decide when to act. It is a time-driven environment tick that samples agent activity probabilistically. The pattern enables multi-agent simulations where agent behavior is temporally heterogeneous (some agents are active at night, some at day) without requiring agent-side scheduling logic. [Source: raw/code-research-666ghj-mirofish.md]
+
 ## Condenser-as-Action Pattern
 
 Both OpenHands and OpenCode treat context compaction as a visible, auditable architectural event rather than a hidden side-effect triggered by token count. In OpenHands, the agent returns a `CondensationAction` from `agent.step()` — this action is logged to the EventStream, persisted in the event store, and replayed on session restore, giving condensation the same first-class status as any tool call or observation. The pluggable condenser system has 9 composable implementations (LLM summarizer, no-op, amnesiac, recent-history, llm-and-no-op, summarize-then-forget, and combinations). OpenCode models compaction as a named "compaction" agent with its own model selection and no tools, making it an explicit agent dispatch rather than an inline operation. Both approaches make the context management decision inspectable in logs and auditable in post-mortems — a stark contrast to systems where compaction fires silently based on token thresholds with no trace in the event record. [Source: raw/code-research-all-hands-ai-openhands.md] [Source: raw/code-research-anomalyco-opencode.md]
@@ -149,9 +158,10 @@ Both OpenHands and OpenCode treat context compaction as a visible, auditable arc
 - [raw/machinelearningmastery-com-the-roadmap-to-mastering-agentic-ai-design-patterns.md](../raw/machinelearningmastery-com-the-roadmap-to-mastering-agentic-ai-design-patterns.md) — Comprehensive roadmap covering ReAct, Reflection, Tool Use, Planning, and Multi-Agent patterns with selection criteria and evaluation guidance
 - [raw/arxiv-org-html-2501-09136v4.md](../raw/arxiv-org-html-2501-09136v4.md) — Survey paper on Agentic RAG covering the integration of autonomous agents into retrieval-augmented generation pipelines
 - [raw/code-research-claude-code.md](../raw/code-research-claude-code.md) — Code research, Apr 2026. Imperative while(true) state machine pattern, forked agent pattern as fundamental building block, tool_use presence as continuation signal.
-- [raw/code-research-karpathy-autoresearch.md](../raw/code-research-karpathy-autoresearch.md) — Code research, Apr 2026. Prose-as-control-flow pattern where the system prompt IS the agent loop, control inversion with LLM as scheduler.
+- [raw/code-research-karpathy-autoresearch.md](../raw/code-research-karpathy-autoresearch.md) — Code research, Apr 2026. Prose-as-control-flow pattern where the system prompt IS the agent loop; deterministic FSM with LLM judgment only at crash-recovery branch points; control inversion with LLM as scheduler.
 - [raw/code-research-all-hands-ai-openhands.md](../raw/code-research-all-hands-ai-openhands.md) — Code research, Apr 2026. Callback-driven event loop as alternative to while(true); CondensationAction as first-class event; 9-implementation pluggable condenser system.
 - [raw/code-research-anomalyco-opencode.md](../raw/code-research-anomalyco-opencode.md) — Code research, Apr 2026. DB-authoritative while(true) loop; compaction modeled as a named agent dispatch with its own model selection.
+- [raw/code-research-666ghj-mirofish.md](../raw/code-research-666ghj-mirofish.md) — Code research, Apr 2026. Round-as-clock time-driven environment tick with stochastic per-agent activity sampling.
 
 ## Related
 
