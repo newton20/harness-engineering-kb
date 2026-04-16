@@ -89,6 +89,7 @@ Set these variables for the rest of the skill:
 - **REPO_NAME**: the sanitized name
 - **RESEARCH_GOAL**: the parsed or default goal
 - **SKIP_TRIAGE**: true or false
+- **RUN_DATE**: today's date in YYYY-MM-DD format
 
 ### 0e. Read Prior Learnings
 
@@ -142,13 +143,17 @@ Set **REPO_PATH** to the absolute path. Set CLONE_DIR to empty (no cleanup neede
 
 ### 1b. Check for Existing Research
 
-Check if `raw/code-research-{REPO_NAME}.md` already exists:
+Check for previous versioned research files:
 
 ```bash
-ls raw/code-research-{REPO_NAME}.md 2>/dev/null
+ls raw/code-research-{REPO_NAME}-*.md 2>/dev/null
 ```
 
-If it exists, print: **"Note: Previous research exists for {REPO_NAME}. Will overwrite."**
+If any exist, list them and print: **"Note: Previous research exists for {REPO_NAME}: {list of files}. This run will create a new versioned file."**
+
+Compute **RUN_NUMBER** = count of existing files + 1.
+
+Check for same-day collision: if a file for today's date already exists (`raw/code-research-{REPO_NAME}-{RUN_DATE}.md`), append a counter to make the filename unique: `raw/code-research-{REPO_NAME}-{RUN_DATE}-2.md` (or `-3`, etc.).
 
 Print: **"Repository accessed. Path: {REPO_PATH}"**
 
@@ -526,8 +531,8 @@ Print: **"Synthesis complete. {N} evidence paths verified, {M} contradictions re
 ## Step 6: Write Research Report
 
 Write the research report to BOTH locations using the Write tool:
-1. `raw/code-research-{REPO_NAME}.md` (for KB integration)
-2. `outputs/code-research-{REPO_NAME}.md` (archival copy)
+1. `raw/code-research-{REPO_NAME}-{RUN_DATE}.md` (for KB integration — versioned, never overwrites)
+2. `outputs/code-research-{REPO_NAME}-{RUN_DATE}.md` (archival copy — versioned identically)
 
 Use this template, filling in all `{PLACEHOLDER}` values from the data gathered in Steps 0-5:
 
@@ -544,6 +549,7 @@ tags: [code-research, {2-3 primary pattern tags from findings}]
 relevance_score: {score from triage, or 7 if triage was skipped}
 research_goal: "{RESEARCH_GOAL}"
 dimensions_analyzed: [{list of dimensions that produced findings}]
+run_number: {RUN_NUMBER}
 ---
 
 # Code Research: {REPO_NAME}
@@ -629,7 +635,7 @@ worth extracting."}
 
 Write the report to both file paths. They should be identical.
 
-Print: **"Research report written to raw/code-research-{REPO_NAME}.md and outputs/code-research-{REPO_NAME}.md"**
+Print: **"Research report written to raw/code-research-{REPO_NAME}-{RUN_DATE}.md and outputs/code-research-{REPO_NAME}-{RUN_DATE}.md"**
 
 ---
 
@@ -638,7 +644,7 @@ Print: **"Research report written to raw/code-research-{REPO_NAME}.md and output
 ### 7a. Verify Raw File
 
 ```bash
-ls raw/code-research-{REPO_NAME}.md
+ls raw/code-research-{REPO_NAME}-{RUN_DATE}.md
 ```
 
 If the file doesn't exist, something went wrong in Step 6. Print error and STOP.
@@ -673,7 +679,7 @@ Continue to Step 8 regardless.
 
 ### 7c. Print Integration Message
 
-Print: **"Research report saved to raw/code-research-{REPO_NAME}.md. Run /kb-compile to integrate findings into wiki articles."**
+Print: **"Research report saved to raw/code-research-{REPO_NAME}-{RUN_DATE}.md. Run /kb-compile to integrate findings into wiki articles."**
 
 Do NOT auto-compile into wiki. Wiki compilation involves cross-pollination across 10-15 articles and should be a deliberate step.
 
@@ -734,7 +740,7 @@ Read `log.md`. If it does not exist, create it with a `# Log` header first.
 Append to `log.md` using the Edit tool:
 
 ```
-- **[{YYYY-MM-DD HH:MM}]** — /kb-code-research on {REPO_NAME}: relevance {score}/10, {N} novel findings, {M} variant findings, {K} decisions to adopt. Report: raw/code-research-{REPO_NAME}.md
+- **[{YYYY-MM-DD HH:MM}]** — /kb-code-research on {REPO_NAME}: relevance {score}/10, {N} novel findings, {M} variant findings, {K} decisions to adopt. Report: raw/code-research-{REPO_NAME}-{RUN_DATE}.md
 ```
 
 ### 9b. Print Executive Summary
@@ -762,7 +768,7 @@ Research complete on {REPO_NAME}.
   Relevance: {score}/10
   Novel findings: {N}
   Decisions to adopt: {K}
-  Report: raw/code-research-{REPO_NAME}.md
+  Report: raw/code-research-{REPO_NAME}-{RUN_DATE}.md
   Next: Run /kb-compile to integrate findings into wiki articles.
 ```
 
