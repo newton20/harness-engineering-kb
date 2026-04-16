@@ -5,7 +5,7 @@ author: "kb-code-research skill"
 date: 2026-04-14
 fetched: 2026-04-14
 type: code-research
-status: compiled
+status: raw
 compiled_to: [wiki/claude-code-architecture.md, wiki/autoresearch-and-self-improvement.md, wiki/agent-memory-and-context-management.md, wiki/tool-design-patterns.md, wiki/long-running-agent-harnesses.md, wiki/practical-best-practices.md, wiki/agentic-design-patterns.md]
 compiled_date: 2026-04-14
 tags: [code-research, claude-code, agent-loop, compaction, memory-system, tool-design, multi-agent, prompt-cache]
