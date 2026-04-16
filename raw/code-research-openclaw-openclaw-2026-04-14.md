@@ -5,7 +5,7 @@ author: "kb-code-research skill"
 date: 2026-04-14
 fetched: 2026-04-14
 type: code-research
-status: raw
+status: compiled
 compiled_to: [agent-memory-and-context-management, tool-design-patterns, long-running-agent-harnesses, multi-agent-reliability, practical-best-practices]
 compiled_date: 2026-04-14
 tags: [code-research, extensible-harness, skill-system, multi-agent, memory-hierarchy]

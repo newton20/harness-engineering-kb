@@ -15,7 +15,8 @@ sources:
   - raw/himanshustwts-2038924027411222533.md
   - raw/idoubicc-2039006326882546141.md
   - raw/code-research-claude-code-2026-04-15.md
-source_count: 6
+  - raw/code-research-claude-code-2026-04-14.md
+source_count: 7
 status: draft
 last_compiled: 2026-04-15
 ---
@@ -74,6 +75,12 @@ Most harnesses wait for the model to finish generating before executing any tool
 ### Tool Result Budgeting
 
 A Bash command that dumps 1MB of logs would fill the context window if passed raw. Claude Code runs a budgeting system: each tool specifies maxResultSizeChars, results exceeding the limit persist to disk, and the model receives a file path reference plus a preview. applyToolResultBudget() runs before each API call to constrain total tool result tokens. [Source: raw/rohit4verse-2041548810804211936.md]
+
+The default threshold is 50K characters per individual result. An additional aggregate per-message budget of 200K characters prevents parallel tools from flooding the context even when each individual result stays under its own limit. When the aggregate is exceeded, the lowest-priority results are evicted first, and each evicted result is replaced with a disk path plus a preview of the first few lines. This two-tier budget (per-result + per-message aggregate) ensures that even when 10 tools run concurrently, the total context injection from a single turn remains bounded. [Source: raw/code-research-claude-code-2026-04-14.md]
+
+### Tool Schema Cache Optimization via assembleToolPool()
+
+The `assembleToolPool()` function that assembles the active tool set applies a deliberate ordering rule: built-in tools are sorted alphabetically and placed as a prefix; MCP tools are appended as a suffix. The split is not ergonomic -- it exists entirely as a cache optimization. The prompt cache breakpoint is placed after the last built-in tool, so any change to the MCP tool set (servers connecting or disconnecting) only invalidates the suffix of the cache, leaving the built-in prefix intact. This means a session that adds a new MCP server does not pay the full retokenization cost for all built-in tool schemas. [Source: raw/code-research-claude-code-2026-04-14.md]
 
 ### Deferred Tool Loading via ToolSearchTool
 
@@ -198,6 +205,10 @@ Hooks serve as the escape hatch: a script receives tool call details and returns
 
 In auto mode (headless), Claude Code tracks classifier-level permission denials as a circuit breaker signal. Three consecutive denials OR twenty total denials trigger an `AbortError` that terminates the session. This creates a direct, measurable path from classifier behavior to loop termination: a model that repeatedly attempts disallowed tool calls will cause the harness to halt rather than loop indefinitely. The two thresholds -- consecutive (rapid failure burst) and cumulative (slow-burn pattern) -- catch different failure modes: a stuck agent vs. a persistently policy-violating agent. [Source: raw/code-research-claude-code-2026-04-15.md]
 
+### Output Token Recovery Loop
+
+When the model hits the output token cap mid-generation, the harness does not surface an error to the user or discard the turn. Instead it injects a meta-instruction into the next user message -- "Resume directly -- no apology, no recap..." -- and re-calls the model. The constant `MAX_OUTPUT_TOKENS_RECOVERY_LIMIT = 3` sets a ceiling of three recovery attempts before the harness gives up. This is a transparent meta-injection pattern: the model receives explicit instruction on how to continue without re-summarizing, keeping the context tight and avoiding the common failure mode of the model wasting tokens on preamble. The recovery path is a labeled `continue` transition in the core loop's state machine, not an outer try-catch. [Source: raw/code-research-claude-code-2026-04-14.md]
+
 ## The Error Recovery System
 
 The retry system (services/api/withRetry.ts, 823 lines) handles every error class with specific recovery paths: [Source: raw/rohit4verse-2041548810804211936.md]
@@ -232,8 +243,10 @@ Long-lived peer agents running in separate OS processes (tmux panes or iTerm2 sp
 ### Coordinator Mode
 A dedicated `CLAUDE_CODE_COORDINATOR_MODE=1` replaces the default system prompt with a structured Research -> Synthesis -> Implementation -> Verification workflow. The coordinator sees only 4 tools (AgentTool, TaskStopTool, SendMessageTool, SyntheticOutputTool) -- pure orchestration with no direct file/shell access. All spawns are forced async. [Source: raw/code-research-claude-code-2026-04-15.md]
 
+The restricted tool set (4 tools vs. the standard 50+) is a deliberate isolation decision, not a cost-saving measure. With no direct file or shell access, the coordinator cannot act on its own assumptions -- all work must flow through sub-agents, which enforces the Research → Synthesis → Implementation → Verification workflow structurally rather than by instruction alone. An explicit prompt principle, "Never delegate understanding," addresses the game-of-telephone anti-pattern where a coordinator summarizes a task before passing it down, losing fidelity at each hop. The coordinator is expected to construct fully self-contained sub-agent prompts with exact file paths and line numbers rather than high-level descriptions that workers must re-interpret. [Source: raw/code-research-claude-code-2026-04-14.md]
+
 ### Auto-Background Escalation
-Sync agents exceeding 120 seconds are automatically promoted to background via `Promise.race()`. The agent continues uninterrupted; only the parent's waiting behavior changes. [Source: raw/code-research-claude-code-2026-04-15.md]
+Sync agents exceeding 120 seconds are automatically promoted to background via `Promise.race()`. The agent continues uninterrupted; only the parent's waiting behavior changes. [Source: raw/code-research-claude-code-2026-04-15.md] [Source: raw/code-research-claude-code-2026-04-14.md]
 
 Three spawn backends: in-process (direct Node.js, fastest, shared memory), tmux pane (terminal multiplexer isolation, each agent visible in its own tab), remote (CCR environment, full machine isolation). Task coordination uses a disk-backed task list with file-based locking at `~/.claude/tasks/<taskListId>/<taskId>.json`. [Source: raw/rohit4verse-2041548810804211936.md]
 
@@ -288,3 +301,4 @@ Several principles emerge from Claude Code's architecture:
 - [raw/himanshustwts-2038924027411222533.md](../raw/himanshustwts-2038924027411222533.md) -- Himanshu (@himanshustwts), Mar 2026. Memory architecture analysis: index-not-storage, autoDream, staleness, skeptical retrieval.
 - [raw/idoubicc-2039006326882546141.md](../raw/idoubicc-2039006326882546141.md) -- Idoubi (@idoubicc), Mar 2026. Open-agent-sdk: open-source Claude Code logic extraction for cloud-scale agent deployment.
 - [raw/code-research-claude-code-2026-04-15.md](../raw/code-research-claude-code-2026-04-15.md) -- First-hand source code analysis via /kb-code-research skill, Apr 2026 (re-run). Deep analysis: imperative loop architecture, 5 memory systems, 6-layer compaction cascade, 50+ tools with deferred loading, 4 multi-agent modes (including Fork), permission denial circuit breaker, asymmetric tool clearing, prompt cache-first design.
+- [raw/code-research-claude-code-2026-04-14.md](../raw/code-research-claude-code-2026-04-14.md) -- First-hand source code analysis via /kb-code-research skill, Apr 2026 (original run). Recovered findings: output token recovery loop (MAX_OUTPUT_TOKENS_RECOVERY_LIMIT=3), assembleToolPool() cache optimization via built-in/MCP split, two-tier tool result budget (50K per-result + 200K aggregate), coordinator mode restricted tier with "Never delegate understanding" principle, auto-background escalation at 120s.

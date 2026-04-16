@@ -24,7 +24,9 @@ sources:
   - raw/code-research-all-hands-ai-openhands-2026-04-15.md
   - raw/code-research-anomalyco-opencode-2026-04-15.md
   - raw/code-research-666ghj-mirofish-2026-04-15.md
-source_count: 13
+  - raw/code-research-claude-code-2026-04-14.md
+  - raw/code-research-openclaw-openclaw-2026-04-14.md
+source_count: 15
 status: draft
 last_compiled: 2026-04-15
 ---
@@ -65,6 +67,8 @@ Manus takes a different approach to the same problem: rather than adding and rem
 
 Claude Code's source reveals a concrete implementation of lazy loading that goes beyond Cursor's approach. MCP tools and flagged built-ins start in a "deferred" state where the model sees only tool names via a `tool_reference` API content type -- no schemas are loaded. The model must explicitly call `ToolSearchTool` to load a tool's full schema before first use, saving approximately 11K tokens of tool schemas that would otherwise occupy context from the start. Discovered tool schemas persist via message history scanning so they survive compaction. Delta notifications keep the model updated when tool availability changes. [Source: raw/code-research-claude-code-2026-04-15.md]
 
+The persistence mechanism is worth examining closely: once a tool schema is loaded, the harness scans message history for previously-discovered tool schemas on every turn via `extractDiscoveredToolNames`. This means the schema survives autocompaction -- the compaction process writes `compactMetadata.preCompactDiscoveredTools`, which the post-compact recovery logic uses to re-announce the previously-loaded schemas via `deferred_tools_delta` attachment messages. The model is never surprised by a tool disappearing after compaction. This is a non-obvious invariant: lazy loading normally creates a risk that compaction will evict a tool the model expects to be available; the history-scanning mechanism explicitly closes that gap. [Source: raw/code-research-claude-code-2026-04-14.md]
+
 ## Tool Concurrency Partitioning
 
 Claude Code partitions tool execution into read-safe and write operations. Read-safe tools (Glob, Grep, Read) are batched for parallel execution -- up to 10 concurrent calls per turn -- yielding roughly 10x throughput on read-heavy turns. Write operations always run serially. Context modifiers from concurrent tools are queued and applied only after the entire batch completes. This partitioning enables fast data-gathering phases while preventing the race conditions that would arise from concurrent writes. [Source: raw/code-research-claude-code-2026-04-15.md]
@@ -72,6 +76,8 @@ Claude Code partitions tool execution into read-safe and write operations. Read-
 ## buildTool() Factory and Error-as-Context
 
 Claude Code registers its 50+ tools through a `buildTool()` factory with fail-closed defaults -- tools must explicitly opt into capabilities rather than opt out of restrictions. All tool errors are returned as `<tool_use_error>` content in the `tool_result` message rather than throwing exceptions. The harness performs no automatic retries; instead, the model reads the error and decides how to proceed. This error-as-context pattern produces simpler harness code and smarter error handling, since the model can reason about what went wrong and adapt its approach rather than blindly retrying the same operation. [Source: raw/code-research-claude-code-2026-04-15.md]
+
+The fail-closed default is enforced at the factory level: no individual tool author can accidentally leave a capability gate open by omitting a field. Every tool starts locked and must explicitly grant permissions via named flags. This is a security design choice as much as an engineering one -- the factory ensures that new tools added to the registry cannot inadvertently bypass the harness's permission layer. [Source: raw/code-research-claude-code-2026-04-14.md]
 
 ## Prose-as-Schema: Tool APIs in Natural Language
 
@@ -129,11 +135,13 @@ OpenClaw reveals a production-scale challenge not addressed by simpler harnesses
 
 This is a provider portability abstraction: tool authors write schemas once, and the normalization layer handles all provider quirks. The practical lesson for harness engineers: if you support multiple LLM providers, plan for a normalization layer between your tool definitions and the API calls.
 
+The TypeBox-first approach has a concrete advantage over JSON Schema-first: TypeBox schemas are TypeScript types at compile time and JSON Schema at runtime, so the same definition drives both static type checking and runtime validation without duplication. The `normalizeToolParameterSchema()` function operates on the JSON Schema output of TypeBox, making it provider-agnostic -- it does not need to understand TypeBox internals. New providers require only a new normalization branch in that function, not changes to any tool definition. This write-once, run-anywhere approach was identified as a key architectural choice in the original code research. [Source: raw/code-research-openclaw-openclaw-2026-04-14.md]
+
 ## Streaming JSON Argument Repair
 
 A related finding from OpenClaw: provider-specific bugs in tool call argument streaming are common enough to warrant dedicated repair logic. The harness includes a stream wrapper that tracks partial JSON buffers per tool call content index, attempts `JSON.parse` on each partial, and falls back to `extractBalancedJsonPrefix` when parsing fails. Specific repairs target named providers -- Kimi (JSON with leading/trailing garbage) and xAI (HTML entity encoding in arguments). The repair runs in the streaming pipeline, fixing partial events before they reach the agent core. [Source: raw/code-research-openclaw-openclaw-2026-04-15.md]
 
-Additionally, tool name normalization goes 4 levels deep: exact match, case-insensitive match, structured segment matching (splitting on `.` and `/`), and tool-call-ID inference (extracting names from IDs like `functions.tool_name.1`). An unknown-tool loop guard detects when the model repeatedly calls a hallucinated tool name and rewrites the assistant's message to a self-corrective instruction. This depth of fallback reflects the reality of multi-provider deployments where model output quality varies significantly. [Source: raw/code-research-openclaw-openclaw-2026-04-15.md]
+Additionally, tool name normalization goes 4 levels deep: exact match, case-insensitive match, structured segment matching (splitting on `.` and `/`), and tool-call-ID inference (extracting names from IDs like `functions.tool_name.1`). An unknown-tool loop guard detects when the model repeatedly calls a hallucinated tool name and rewrites the assistant's message to a self-corrective instruction. This depth of fallback reflects the reality of multi-provider deployments where model output quality varies significantly. [Source: raw/code-research-openclaw-openclaw-2026-04-15.md] [Source: raw/code-research-openclaw-openclaw-2026-04-14.md]
 
 ## Skills as Prompt Injections (Not Tools)
 
@@ -235,6 +243,14 @@ Claude Code's microcompaction applies asymmetric clearing to read and write tool
 
 Claude Code's permission system uses a `ToolName(content)` grammar where parentheses in content are escaped. Shell matching operates at three tiers: exact literal match, prefix match (e.g., `npm:*` matches any npm subcommand), and wildcard match (e.g., `git *` compiles to a regex with dotAll mode to handle heredoc arguments spanning multiple lines). The system includes shadowed rule detection: if a broad deny rule would make a specific allow rule unreachable, a warning is emitted at load time. This prevents silent misconfiguration where a developer adds a targeted carve-out that a broader deny rule silently overrides. [Source: raw/code-research-claude-code-2026-04-15.md]
 
+## Head+Tail Truncation with 30% Tail Budget
+
+OpenClaw's tool result truncation uses a head+tail strategy rather than simple head truncation. When a result exceeds the size limit, the harness preserves the beginning of the output at 70% of the budget and the end at 30%. The tail budget exists specifically to preserve error output and stack traces, which typically appear at the end of command output. A naive head-only truncation would silently discard the error that explains why the tool call failed -- the worst possible outcome for a model trying to reason about what went wrong. The 30% tail allocation is a deliberate judgment about where diagnostic information lives in typical tool output. [Source: raw/code-research-openclaw-openclaw-2026-04-14.md]
+
+## Tool Policy Pipeline
+
+OpenClaw applies tool availability through a multi-step filtering pipeline rather than a single permission check. The pipeline has four stages: profile-level filtering (based on the active configuration profile), provider-level filtering (tools unavailable for the current LLM provider are removed), agent-level filtering (tools restricted to specific agent types), and group-level filtering (fine-grained access control by user or team group). Each stage operates independently and can remove tools without affecting the others. This means a tool can be excluded for four independent reasons, and adding a tool to one stage does not implicitly grant access at other stages. The pipeline approach makes access control auditable: you can inspect each stage's output to understand exactly why a tool is or is not available for a given request. [Source: raw/code-research-openclaw-openclaw-2026-04-14.md]
+
 ## Plugin Security Scanning
 
 OpenClaw gates every plugin install through 4 scan functions before the plugin code is allowed to run. Results are cached in an mtime-keyed file cache with a 5000-entry capacity, making re-checks on unchanged files nearly free. Prompt injection detection uses 13 patterns covering classic attack vectors. The mtime key invalidates cache entries automatically whenever a plugin file is modified, so the security scan is never skipped on updated plugins while still avoiding redundant scans on unchanged ones. [Source: raw/code-research-openclaw-openclaw-2026-04-15.md]
@@ -289,3 +305,5 @@ The accumulated wisdom on tool design converges on several principles:
 - [raw/code-research-all-hands-ai-openhands-2026-04-15.md](../raw/code-research-all-hands-ai-openhands-2026-04-15.md) -- Code research, Apr 2026. Security-risk-as-parameter (LLM self-labels risk, pluggable SecurityAnalyzer override), MCP stdio-over-HTTP proxy in Docker sandbox, action-as-typed-dataclass with reflection dispatch, request_condensation as agent-callable context management tool.
 - [raw/code-research-anomalyco-opencode-2026-04-15.md](../raw/code-research-anomalyco-opencode-2026-04-15.md) -- Code research, Apr 2026. Nine-strategy fuzzy edit replacer cascade, tree-sitter bash AST for permission detection, model-gated tool selection (GPT-4 → apply_patch), description-as-template from .txt sidecar files, invalid tool as first-class error handler, uniform truncation middleware with agent-aware hints, LSP integration as a single multi-operation tool, remote skill CDN discovery.
 - [raw/code-research-666ghj-mirofish-2026-04-15.md](../raw/code-research-666ghj-mirofish-2026-04-15.md) -- Code research, Apr 2026. Minimum tool-call enforcement (3-call floor, 5-call ceiling, unused-tool hints), plugin security scanning with mtime-keyed cache.
+- [raw/code-research-claude-code-2026-04-14.md](../raw/code-research-claude-code-2026-04-14.md) -- Code research, Apr 2026 (original run). Recovered findings: buildTool() fail-closed factory enforcement, deferred tool schema persistence via message history scanning, assembleToolPool() cache-breakpoint ordering.
+- [raw/code-research-openclaw-openclaw-2026-04-14.md](../raw/code-research-openclaw-openclaw-2026-04-14.md) -- Code research, Apr 2026 (original run). Recovered findings: TypeBox write-once/run-anywhere schema approach, 4-level tool name normalization with loop guard, head+tail truncation with 30% tail budget for error preservation, 4-stage tool policy pipeline (profile → provider → agent → group).

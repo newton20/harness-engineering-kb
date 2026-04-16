@@ -14,7 +14,9 @@ sources:
   - raw/code-research-openclaw-openclaw-2026-04-15.md
   - raw/code-research-all-hands-ai-openhands-2026-04-15.md
   - raw/code-research-anomalyco-opencode-2026-04-15.md
-source_count: 6
+  - raw/code-research-openclaw-openclaw-2026-04-14.md
+  - raw/code-research-claude-code-2026-04-14.md
+source_count: 8
 status: draft
 last_compiled: 2026-04-15
 ---
@@ -119,6 +121,24 @@ OpenCode classifies all agents into three modes at registration time: `primary` 
 
 Despite their name, OpenHands microagents are not autonomous sub-agents — they are prompt augmentation mechanisms. `KnowledgeMicroagent`, `RepoMicroagent`, and `TaskMicroagent` each operate by injecting additional content into the primary agent's system prompt when triggered: `KnowledgeMicroagent` fires on keyword match in user messages, `RepoMicroagent` reads `.openhands/microagents/repo.md` from the repository root and injects it at session start, and `TaskMicroagent` injects task-specific instructions. None of them issue actions, observe results, or maintain their own state — they are stateless text injectors that extend the primary agent's context. The naming reflects how the term "agent" is overloaded in practice: any configurable system component gets the label, whether or not it acts autonomously. Harness engineers should read "microagent" as "context plugin" in the OpenHands documentation. [Source: raw/code-research-all-hands-ai-openhands-2026-04-15.md]
 
+## OpenClaw: Additional Multi-Agent Patterns (2026-04-14 Research)
+
+### Announce Queue Batching with Summarize Drop Policy
+
+When multiple child agents complete concurrently during a fan-out burst, OpenClaw's announce queue batches their completion notifications into a single delivery to the requester rather than flooding the orchestrator's context with sequential announcements. The queue has a configurable `dropPolicy: "summarize"` and a hard cap of 20 items per requester. When the cap is reached, excess completions are summarized rather than dropped or queued indefinitely. This directly prevents the context-flood anti-pattern that arises in large fan-out topologies where dozens of leaf agents complete in a short window. [Source: raw/code-research-openclaw-openclaw-2026-04-14.md]
+
+### Depth-Bounded Role Assignment
+
+OpenClaw assigns one of three explicit roles to each agent at spawn time based on its depth in the hierarchy: `main` (depth 0), `orchestrator` (depth 1 to `maxDepth-1`), and `leaf` (at `maxDepth`). Leaf agents have `canSpawn: false` and cannot create children. The default `maxSpawnDepth = 1` means the system ships with a flat topology -- orchestrator plus leaves -- and true multi-level orchestration must be explicitly opted into by raising the depth limit. This default-flat design prevents accidental spawning cascades and makes the common case (shallow orchestration) safe without configuration. [Source: raw/code-research-openclaw-openclaw-2026-04-14.md]
+
+### Fire-and-Forget Spawning
+
+OpenClaw's `spawn` operation returns `{status: "accepted"}` immediately with no blocking on child initialization or execution. The caller does not wait for the child to start, complete, or return a result. Result delivery is entirely push-based: when a child completes, it auto-announces its result upstream via the gateway's steer message injection path. The spawning agent can immediately continue its own work after receiving the `"accepted"` status. This fire-and-forget model maximizes parallelism in fan-out scenarios and prevents the orchestrator's context from accumulating polling overhead while waiting for children. [Source: raw/code-research-openclaw-openclaw-2026-04-14.md]
+
+## Claude Code: "Never Delegate Understanding" Principle (2026-04-14 Research)
+
+Claude Code's coordinator (orchestrator) prompt contains an explicit prohibition on delegating synthesis tasks to subagents. The principle, stated directly in the prompt, is "Never Delegate Understanding": the coordinator must itself synthesize, analyze, and reason about results -- these cognitive steps cannot be handed off to a subagent that does not share the coordinator's full context. The prompt further mandates that instructions to subagents must be self-contained, including specific file paths and line numbers rather than vague references that require the subagent to infer context. This addresses the game-of-telephone anti-pattern where each relay through an intermediate agent risks information loss, summarization artifacts, and context-dependent references that become ambiguous when the receiving agent lacks the original context. [Source: raw/code-research-claude-code-2026-04-14.md]
+
 ## Combining Defenses
 
 No single defense mechanism is sufficient. A robust multi-agent system combines multiple layers:
@@ -140,6 +160,8 @@ The defense-in-depth approach reflects a fundamental reality: multi-agent system
 - [raw/code-research-openclaw-openclaw-2026-04-15.md](../raw/code-research-openclaw-openclaw-2026-04-15.md) — Code research, Apr 2026. OpenClaw's production multi-agent reliability: frozen result capture, sessions_yield cooperative abort, push-based announce batching, orphan recovery, depth-bounded hierarchy.
 - [raw/code-research-all-hands-ai-openhands-2026-04-15.md](../raw/code-research-all-hands-ai-openhands-2026-04-15.md) — Code research, Apr 2026. Delegate history scrubbing (bookend-only parent view), global iteration counter across delegation boundary, microagents as prompt augmentation mechanisms (not autonomous agents).
 - [raw/code-research-anomalyco-opencode-2026-04-15.md](../raw/code-research-anomalyco-opencode-2026-04-15.md) — Code research, Apr 2026. Mode-typed agent registry (primary/subagent/all), permission inheritance with scoped denial, resumable subagent sessions via task_id.
+- [raw/code-research-openclaw-openclaw-2026-04-14.md](../raw/code-research-openclaw-openclaw-2026-04-14.md) — Code research, Apr 2026. Announce queue batching with summarize drop policy (cap 20); depth-bounded role assignment (main/orchestrator/leaf); fire-and-forget spawning with push-based result delivery.
+- [raw/code-research-claude-code-2026-04-14.md](../raw/code-research-claude-code-2026-04-14.md) — Code research, Apr 2026. "Never Delegate Understanding" principle in coordinator prompt; mandate for self-contained subagent instructions with specific file paths and line numbers.
 
 ## Related
 

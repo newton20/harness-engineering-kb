@@ -23,7 +23,9 @@ sources:
   - raw/code-research-all-hands-ai-openhands-2026-04-15.md
   - raw/code-research-anomalyco-opencode-2026-04-15.md
   - raw/code-research-666ghj-mirofish-2026-04-15.md
-source_count: 12
+  - raw/code-research-claude-code-2026-04-14.md
+  - raw/code-research-openclaw-openclaw-2026-04-14.md
+source_count: 14
 status: draft
 last_compiled: 2026-04-15
 ---
@@ -176,6 +178,30 @@ Context compaction uses a two-trigger design. Predictive compaction fires before
 
 Two additional memory patterns are worth noting. AGENTS.md instruction files are tracked per-message via a claims-based deduplication system that prevents the same instruction block from being injected more than once per conversation, keeping context lean without losing coverage. The `TodoWrite` tool is backed by SQL with atomic delete-and-reinsert semantics per session, giving the agent a structured, queryable short-term task list that survives compaction and is isolated per session by design. [Source: raw/code-research-anomalyco-opencode-2026-04-15.md]
 
+## Claude Code Memory Architecture Details (2026-04-14 Research)
+
+### MEMORY.md 200-Line Index Cap
+
+Claude Code's memdir design uses `MEMORY.md` as a bounded index file with a hard cap of 200 lines, alongside individual topic files with YAML frontmatter. This cap prevents unbounded growth of the primary index -- as new memories are written, the index is kept within this limit, and detail lives in per-topic files rather than accumulating in a single flat document. The separation of the bounded index from unbounded individual files is the key structural decision: the index stays navigable while the full memory corpus can grow. [Source: raw/code-research-claude-code-2026-04-14.md]
+
+### No Project-Level autoMemoryDirectory Override
+
+The memory path used by Claude Code's memdir system cannot be set or overridden from `.claude/settings.json` at the project level. This is an explicit defense-in-depth security decision: it prevents a malicious repository from redirecting the agent's memory writes to sensitive filesystem locations. A project-level `autoMemoryDirectory` override would allow an adversarial repo to set the memory path to `/etc/cron.d/`, `~/.ssh/`, or similar sensitive targets. By making the memory path non-configurable from project settings, the harness ensures that memory writes always land in a controlled location regardless of what a repository's config files specify. [Source: raw/code-research-claude-code-2026-04-14.md]
+
+## OpenClaw Memory Architecture Details (2026-04-14 Research)
+
+### Temporal Decay and MMR in Hybrid Search
+
+OpenClaw's vector search implementation goes beyond naive cosine similarity in two important ways. First, results are scored with recency weighting -- memories decay in relevance as they age, so a recent memory with moderate semantic similarity can outrank an older memory with high semantic similarity. Second, results are reranked using Maximal Marginal Relevance (MMR), a diversity algorithm that penalizes retrieving near-duplicate memories. MMR selects each successive result to maximize both relevance to the query and diversity from already-selected results. The combination of temporal decay and MMR means the retrieval set is both fresh and non-redundant, which matters when a corpus accumulates many similar memories over time. [Source: raw/code-research-openclaw-openclaw-2026-04-14.md]
+
+### Plugin-Extensible Memory via registerMemoryCapability
+
+OpenClaw's memory subsystem is not a hardcoded implementation but a swappable plugin registered via a single `registerMemoryCapability()` call. This call replaces the entire memory system: storage backend, retrieval logic, consolidation policies, and all. The harness provides the lifecycle hooks; the capability provides the implementation. This design makes it possible to swap from the default SQLite+sqlite-vec backend to an alternative without touching harness code. It also allows downstream consumers of the harness to inject custom memory implementations for domain-specific retention policies or storage requirements. [Source: raw/code-research-openclaw-openclaw-2026-04-14.md]
+
+### Daily Memory Files Labeled "Untrusted Context"
+
+OpenClaw's system prompt explicitly marks injected daily memory files -- `memory/YYYY-MM-DD.md` -- as "untrusted context" when presenting them to the model. This label sets appropriate model expectations for the quality and reliability of recalled content: daily memory files are written by the agent itself and may contain errors, outdated information, or hallucinations from prior sessions. By framing them as untrusted, the system prompt instructs the model to treat recalled memories as fallible inputs requiring corroboration rather than ground truth. This is a calibration mechanism: the model's prior sessions inform its current reasoning without overriding it. [Source: raw/code-research-openclaw-openclaw-2026-04-14.md]
+
 ## What Survives Compaction Matters
 
 When a context window fills up, something has to give. @systematicls notes that agents are "still atrocious at connecting the dots, filling in the gaps, or making assumptions" -- and that compaction decisions are where this weakness becomes critical. [Source: raw/systematicls-2028814227004395561.md] One of the most important rules to include in CLAUDE.md is a rule on how to deal with grabbing context after compaction: re-reading the task plan and re-reading the relevant files before continuing. [Source: raw/systematicls-2028814227004395561.md]
@@ -215,3 +241,5 @@ If the harness summarizes away a critical constraint ("the client requires Pytho
 - [raw/code-research-all-hands-ai-openhands-2026-04-15.md](../raw/code-research-all-hands-ai-openhands-2026-04-15.md) -- Code research, Apr 2026. OpenHands' 9-condenser pluggable pipeline, CondensationAction as a first-class stream event, event-sourced FileStore per-event JSON, dual proactive+reactive condensation triggers, no vector search (77.6% SWE-Bench via substring matching), prompt caching in ConversationMemory.
 - [raw/code-research-anomalyco-opencode-2026-04-15.md](../raw/code-research-anomalyco-opencode-2026-04-15.md) -- Code research, Apr 2026. OpenCode's triple storage (SQLite/Drizzle + JSON filesystem + git bare repo), snapshot-per-step time-travel via SessionRevert, dual predictive+reactive compaction with two-tier pruning/LLM rewrite, PRUNE_PROTECTED_TOOLS=["skill"], claims-based AGENTS.md deduplication, SQL-backed TodoWrite.
 - [raw/code-research-666ghj-mirofish-2026-04-15.md](../raw/code-research-666ghj-mirofish-2026-04-15.md) -- Code research, Apr 2026. MiroFish's Zep graph edges with valid_at/invalid_at/expired_at timestamps, PanoramaResult separating active_facts from historical_facts for time-aware reasoning.
+- [raw/code-research-claude-code-2026-04-14.md](../raw/code-research-claude-code-2026-04-14.md) -- Code research, Apr 2026. MEMORY.md 200-line index cap in memdir design; no project-level autoMemoryDirectory override as defense-in-depth security for memory paths.
+- [raw/code-research-openclaw-openclaw-2026-04-14.md](../raw/code-research-openclaw-openclaw-2026-04-14.md) -- Code research, Apr 2026. Temporal decay + MMR reranking in hybrid vector search; plugin-extensible memory via registerMemoryCapability(); daily memory files labeled as untrusted context.

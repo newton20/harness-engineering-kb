@@ -17,7 +17,9 @@ sources:
   - raw/code-research-all-hands-ai-openhands-2026-04-15.md
   - raw/code-research-anomalyco-opencode-2026-04-15.md
   - raw/code-research-666ghj-mirofish-2026-04-15.md
-source_count: 7
+  - raw/code-research-karpathy-autoresearch-2026-04-14.md
+  - raw/code-research-openclaw-openclaw-2026-04-14.md
+source_count: 9
 status: draft
 last_compiled: 2026-04-15
 ---
@@ -153,6 +155,26 @@ MiroFish's simulation loop is a deterministic `for round in range(total_rounds)`
 
 Both OpenHands and OpenCode treat context compaction as a visible, auditable architectural event rather than a hidden side-effect triggered by token count. In OpenHands, the agent returns a `CondensationAction` from `agent.step()` — this action is logged to the EventStream, persisted in the event store, and replayed on session restore, giving condensation the same first-class status as any tool call or observation. The pluggable condenser system has 9 composable implementations (LLM summarizer, no-op, amnesiac, recent-history, llm-and-no-op, summarize-then-forget, and combinations). OpenCode models compaction as a named "compaction" agent with its own model selection and no tools, making it an explicit agent dispatch rather than an inline operation. Both approaches make the context management decision inspectable in logs and auditable in post-mortems — a stark contrast to systems where compaction fires silently based on token thresholds with no trace in the event record. [Source: raw/code-research-all-hands-ai-openhands-2026-04-15.md] [Source: raw/code-research-anomalyco-opencode-2026-04-15.md]
 
+## autoresearch: Additional Loop Patterns (2026-04-14 Research)
+
+### Crash-as-Data Pattern
+
+Karpathy's autoresearch treats crashes as first-class experimental outcomes, not exceptional errors. The `program.md` loop definition (step 6) contains explicit triage heuristics for crash handling: inspect the stack trace, attempt a fix if the problem is trivial, and if the crash is fundamental, give up, log `"crash"` as the outcome, and continue to the next experiment. Crashes feed the experiment record in `results.tsv` alongside numerical metrics. This means the outer loop's convergence behavior is informed by the crash rate as well as the improvement rate -- a run phase that produces many crashes signals a degenerate region of the hypothesis space. Treating crashes as data rather than interruptions keeps the loop running without human intervention across a wide range of training failure modes. [Source: raw/code-research-karpathy-autoresearch-2026-04-14.md]
+
+### Prose-as-Schema for Tool API
+
+The entire tool API available to the autoresearch agent is natural language prose in `program.md`, with zero infrastructure: no JSON schema, no typed interfaces, no MCP, no function registry. The LLM is told "run `uv run train.py > run.log 2>&1`" and "grep for `val_bpb`" -- these are not registered tools with formal schemas, they are instructions in natural language that the model executes using its own shell access. This zero-abstraction tool design has a specific consequence: any LLM with shell access and the ability to follow numbered instructions can participate in the loop. There is no adapter layer to maintain, no schema to version, no tool registration to debug. The trade-off is that the tool API cannot be validated, type-checked, or introspected -- but for a minimal loop on a fixed task, the simplicity benefit dominates. [Source: raw/code-research-karpathy-autoresearch-2026-04-14.md]
+
+## OpenClaw: File-Based Identity and Skill Patterns (2026-04-14 Research)
+
+### SOUL.md as File-Content Persona Injection
+
+OpenClaw supports user-controlled agent persona via a `SOUL.md` file in the workspace. The file defines the agent's personality, values, and communication style, and the harness injects it with the instruction to "embody its persona and tone." The SOUL.md template contains the phrase "You're not a chatbot. You're becoming someone." -- framing persona adoption as identity formation rather than role-play. Critically, SOUL.md is a workspace file, not a harness configuration: it survives harness upgrades because it lives in the user's data layer, not the harness code layer. This gives users a stable, version-controlled identity definition that persists across harness updates and can be edited with a text editor. [Source: raw/code-research-openclaw-openclaw-2026-04-14.md]
+
+### Skills as Prompt Injections, Not Tools
+
+OpenClaw's skill system is architecturally distinct from tool registration. Skills are not registered as tool definitions with JSON schemas; instead, they are `SKILL.md` files containing instructions for how to use the agent's existing tools in domain-specific ways. Skills are loaded lazily: the model reads the relevant SKILL.md file via its `read` tool when a skill is needed, rather than having all skills pre-loaded into context. This makes skills a meta-layer above tools -- they extend the model's behavioral repertoire without adding to the tool registry or incurring upfront context cost. The system is extensible by adding files, not by modifying tool registration code. Any user can write a skill by creating a SKILL.md file; no harness code changes are required. [Source: raw/code-research-openclaw-openclaw-2026-04-14.md]
+
 ## Sources
 
 - [raw/machinelearningmastery-com-the-roadmap-to-mastering-agentic-ai-design-patterns.md](../raw/machinelearningmastery-com-the-roadmap-to-mastering-agentic-ai-design-patterns.md) — Comprehensive roadmap covering ReAct, Reflection, Tool Use, Planning, and Multi-Agent patterns with selection criteria and evaluation guidance
@@ -162,6 +184,8 @@ Both OpenHands and OpenCode treat context compaction as a visible, auditable arc
 - [raw/code-research-all-hands-ai-openhands-2026-04-15.md](../raw/code-research-all-hands-ai-openhands-2026-04-15.md) — Code research, Apr 2026. Callback-driven event loop as alternative to while(true); CondensationAction as first-class event; 9-implementation pluggable condenser system.
 - [raw/code-research-anomalyco-opencode-2026-04-15.md](../raw/code-research-anomalyco-opencode-2026-04-15.md) — Code research, Apr 2026. DB-authoritative while(true) loop; compaction modeled as a named agent dispatch with its own model selection.
 - [raw/code-research-666ghj-mirofish-2026-04-15.md](../raw/code-research-666ghj-mirofish-2026-04-15.md) — Code research, Apr 2026. Round-as-clock time-driven environment tick with stochastic per-agent activity sampling.
+- [raw/code-research-karpathy-autoresearch-2026-04-14.md](../raw/code-research-karpathy-autoresearch-2026-04-14.md) — Code research, Apr 2026. Crash-as-data pattern with explicit triage heuristics; prose-as-schema zero-abstraction tool API with no JSON schema or MCP.
+- [raw/code-research-openclaw-openclaw-2026-04-14.md](../raw/code-research-openclaw-openclaw-2026-04-14.md) — Code research, Apr 2026. SOUL.md file-content persona injection; skills as lazy-loaded prompt injections (SKILL.md files), not tool registrations.
 
 ## Related
 

@@ -5,7 +5,7 @@ author: "kb-code-research skill"
 date: 2026-04-14
 fetched: 2026-04-14
 type: code-research
-status: raw
+status: compiled
 compiled_to: [wiki/autoresearch-and-self-improvement.md, wiki/claude-code-architecture.md, wiki/agent-memory-and-context-management.md, wiki/tool-design-patterns.md, wiki/long-running-agent-harnesses.md, wiki/practical-best-practices.md, wiki/agentic-design-patterns.md]
 compiled_date: 2026-04-14
 tags: [code-research, autoresearch, self-improvement, experiment-loop, git-as-state]

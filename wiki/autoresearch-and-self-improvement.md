@@ -17,7 +17,8 @@ sources:
   - raw/arxiv-org-html-2512-20491v1.md
   - raw/arxiv-org-html-2501-09136v4.md
   - raw/code-research-karpathy-autoresearch-2026-04-15.md
-source_count: 6
+  - raw/code-research-karpathy-autoresearch-2026-04-14.md
+source_count: 7
 status: draft
 last_compiled: 2026-04-14
 ---
@@ -171,6 +172,20 @@ This is autoresearch applied to the retrieval step itself: the agent runs a loop
 
 autocontext implements a pipeline for distilling strategies from frontier models into local models: run discovery with a frontier model (Claude Opus 4.6, GPT-5.4), export training data from the run database, train a small local model via MLX on Apple Silicon, and route future runs through the local model when strong enough, falling back to the frontier model when weak. [Source: raw/JayScambler-2033971974284714355.md]
 
+## autoresearch: Additional Architectural Findings (2026-04-14 Research)
+
+### Meta-Learning Framing
+
+Autoresearch is correctly characterized as meta-learning, not model training. Each experiment run starts from `torch.manual_seed(42)` random weight initialization -- no checkpoints are loaded, and no trained weights are saved between runs. The progress accumulated across iterations is improvement in the training recipe (the code in `train.py`), not improvement in trained model weights. A better training script that consistently achieves lower `val_bpb` is the artifact the loop produces. This framing has practical consequences: the loop's improvement is bounded by what can be expressed in a training script, and its convergence criterion is "better code" rather than "better weights." [Source: raw/code-research-karpathy-autoresearch-2026-04-14.md]
+
+### Control Inversion
+
+The autoresearch design explicitly inverts the conventional relationship between code and model. Python (`train.py`) is the training worker -- it runs when told, produces metrics, and has no decision-making role. The LLM is the scheduler, state machine, and decision engine: it decides what mutation to make, when to commit, when to revert, and how to handle crashes. The `program.md` system prompt reinforces this with "NEVER STOP... You are autonomous" as a first-class design principle. The harness positions the LLM as the control plane and Python as the data plane -- an inversion of the usual assumption that code controls and models respond. [Source: raw/code-research-karpathy-autoresearch-2026-04-14.md]
+
+### Multi-Instance Parallelism by Convention
+
+Running multiple autoresearch instances in parallel is coordinated entirely by naming convention: each instance works on a separate git branch named `autoresearch/mar5-gpu0`, `autoresearch/mar5-gpu1`, etc. There is no code that manages the parallel instances, no shared state store, no lock file, no inter-instance communication protocol. The parallelism protocol is: use a different branch name, run on a different machine or GPU, merge winners manually. This is a git-based multi-agent protocol requiring zero infrastructure beyond git itself. The naming convention provides enough coordination for parallel search over the hypothesis space while remaining trivially simple to implement and debug. [Source: raw/code-research-karpathy-autoresearch-2026-04-14.md]
+
 ## Related
 
 - [Practical Best Practices](practical-best-practices.md) -- Handling sycophancy with adversarial agents, iterative improvement philosophy
@@ -195,3 +210,4 @@ autocontext implements a pipeline for distilling strategies from frontier models
 - [raw/arxiv-org-html-2512-20491v1.md](../raw/arxiv-org-html-2512-20491v1.md) -- Ren et al., 2025. Step-DeepResearch: 32B open-source model trained with Atomic Capabilities strategy (planning, info gathering, reflection, report writing) and Checklist-style Judger rewards. 61.4% on Scale AI Research Rubrics.
 - [raw/arxiv-org-html-2501-09136v4.md](../raw/arxiv-org-html-2501-09136v4.md) -- Singh et al., 2025. Agentic RAG survey: evolution from static RAG to agent-driven retrieval with dynamic query reformulation, sufficiency evaluation, and iterative refinement.
 - [raw/code-research-karpathy-autoresearch-2026-04-15.md](../raw/code-research-karpathy-autoresearch-2026-04-15.md) -- First-hand source code analysis via /kb-code-research skill, Apr 2026. Deep 3-dimension analysis of the actual autoresearch codebase: prose-as-control-flow, git-as-experiment-database, fixed-budget evaluation, structural immutability, meta-learning pattern.
+- [raw/code-research-karpathy-autoresearch-2026-04-14.md](../raw/code-research-karpathy-autoresearch-2026-04-14.md) -- Code research, Apr 2026. Meta-learning framing (progress = better code, not better weights); control inversion (LLM as scheduler/decision engine, Python as worker); multi-instance parallelism by git branch naming convention.
