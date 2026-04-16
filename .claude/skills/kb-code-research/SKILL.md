@@ -153,7 +153,9 @@ If any exist, list them and print: **"Note: Previous research exists for {REPO_N
 
 Compute **RUN_NUMBER** = count of existing files + 1.
 
-Check for same-day collision: if a file for today's date already exists (`raw/code-research-{REPO_NAME}-{RUN_DATE}.md`), append a counter to make the filename unique: `raw/code-research-{REPO_NAME}-{RUN_DATE}-2.md` (or `-3`, etc.).
+Check for same-day collision: if a file for today's date already exists (`raw/{REPORT_FILENAME}`), append a counter to make the filename unique: `raw/code-research-{REPO_NAME}-{RUN_DATE}-2.md` (or `-3`, etc.).
+
+Set **REPORT_FILENAME** to the final collision-safe filename (e.g., `code-research-{REPO_NAME}-{RUN_DATE}.md` or `code-research-{REPO_NAME}-{RUN_DATE}-2.md`). Use `{REPORT_FILENAME}` in ALL subsequent steps instead of re-deriving the filename.
 
 Print: **"Repository accessed. Path: {REPO_PATH}"**
 
@@ -531,8 +533,8 @@ Print: **"Synthesis complete. {N} evidence paths verified, {M} contradictions re
 ## Step 6: Write Research Report
 
 Write the research report to BOTH locations using the Write tool:
-1. `raw/code-research-{REPO_NAME}-{RUN_DATE}.md` (for KB integration — versioned, never overwrites)
-2. `outputs/code-research-{REPO_NAME}-{RUN_DATE}.md` (archival copy — versioned identically)
+1. `raw/{REPORT_FILENAME}` (for KB integration — versioned, never overwrites)
+2. `outputs/{REPORT_FILENAME}` (archival copy — versioned identically)
 
 Use this template, filling in all `{PLACEHOLDER}` values from the data gathered in Steps 0-5:
 
@@ -635,7 +637,7 @@ worth extracting."}
 
 Write the report to both file paths. They should be identical.
 
-Print: **"Research report written to raw/code-research-{REPO_NAME}-{RUN_DATE}.md and outputs/code-research-{REPO_NAME}-{RUN_DATE}.md"**
+Print: **"Research report written to raw/{REPORT_FILENAME} and outputs/{REPORT_FILENAME}"**
 
 ---
 
@@ -644,7 +646,7 @@ Print: **"Research report written to raw/code-research-{REPO_NAME}-{RUN_DATE}.md
 ### 7a. Verify Raw File
 
 ```bash
-ls raw/code-research-{REPO_NAME}-{RUN_DATE}.md
+ls raw/{REPORT_FILENAME}
 ```
 
 If the file doesn't exist, something went wrong in Step 6. Print error and STOP.
@@ -679,7 +681,7 @@ Continue to Step 8 regardless.
 
 ### 7c. Print Integration Message
 
-Print: **"Research report saved to raw/code-research-{REPO_NAME}-{RUN_DATE}.md. Run /kb-compile to integrate findings into wiki articles."**
+Print: **"Research report saved to raw/{REPORT_FILENAME}. Run /kb-compile to integrate findings into wiki articles."**
 
 Do NOT auto-compile into wiki. Wiki compilation involves cross-pollination across 10-15 articles and should be a deliberate step.
 
@@ -740,7 +742,7 @@ Read `log.md`. If it does not exist, create it with a `# Log` header first.
 Append to `log.md` using the Edit tool:
 
 ```
-- **[{YYYY-MM-DD HH:MM}]** — /kb-code-research on {REPO_NAME}: relevance {score}/10, {N} novel findings, {M} variant findings, {K} decisions to adopt. Report: raw/code-research-{REPO_NAME}-{RUN_DATE}.md
+- **[{YYYY-MM-DD HH:MM}]** — /kb-code-research on {REPO_NAME}: relevance {score}/10, {N} novel findings, {M} variant findings, {K} decisions to adopt. Report: raw/{REPORT_FILENAME}
 ```
 
 ### 9b. Print Executive Summary
@@ -768,7 +770,7 @@ Research complete on {REPO_NAME}.
   Relevance: {score}/10
   Novel findings: {N}
   Decisions to adopt: {K}
-  Report: raw/code-research-{REPO_NAME}-{RUN_DATE}.md
+  Report: raw/{REPORT_FILENAME}
   Next: Run /kb-compile to integrate findings into wiki articles.
 ```
 
