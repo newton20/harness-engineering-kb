@@ -16,7 +16,7 @@ sources:
   - raw/JayScambler-2033971974284714355.md
   - raw/arxiv-org-html-2512-20491v1.md
   - raw/arxiv-org-html-2501-09136v4.md
-  - raw/code-research-karpathy-autoresearch.md
+  - raw/code-research-karpathy-autoresearch-2026-04-15.md
 source_count: 6
 status: draft
 last_compiled: 2026-04-14
@@ -34,31 +34,31 @@ The key insight is that this loop does not require sophisticated reinforcement l
 
 ## First-Hand Code Analysis: karpathy/autoresearch
 
-First-hand source code analysis of Karpathy's autoresearch repo reveals implementation patterns not visible from external descriptions. The repo is deliberately minimal: 2 Python files (train.py at 630 LOC, prepare.py at 389 LOC) + program.md (115 lines). [Source: raw/code-research-karpathy-autoresearch.md]
+First-hand source code analysis of Karpathy's autoresearch repo reveals implementation patterns not visible from external descriptions. The repo is deliberately minimal: 2 Python files (train.py at 630 LOC, prepare.py at 389 LOC) + program.md (115 lines). [Source: raw/code-research-karpathy-autoresearch-2026-04-15.md]
 
 ### Prose-as-Control-Flow
 
-The entire agent harness is `program.md` -- a markdown file that IS the agent's system prompt. There is no Python orchestrator, no scheduler, no state machine in code. The LLM reads the numbered steps ("LOOP FOREVER: 1. Look at the git state... 2. Tune train.py... 3. git commit... 4. uv run train.py > run.log 2>&1...") and executes them as its own decision procedure. This is the simplest possible harness: the system prompt IS the harness. [Source: raw/code-research-karpathy-autoresearch.md]
+The entire agent harness is `program.md` -- a markdown file that IS the agent's system prompt. There is no Python orchestrator, no scheduler, no state machine in code. The LLM reads the numbered steps ("LOOP FOREVER: 1. Look at the git state... 2. Tune train.py... 3. git commit... 4. uv run train.py > run.log 2>&1...") and executes them as its own decision procedure. This is the simplest possible harness: the system prompt IS the harness. [Source: raw/code-research-karpathy-autoresearch-2026-04-15.md]
 
 ### Git-as-Experiment-Database
 
-Every `git commit` before a run is a hypothesis insertion into a content-addressed database. `git reset` is the rollback/discard operation. The branch HEAD always points to the current best-performing hypothesis. `results.tsv` is deliberately gitignored to separate outcome-memory (what was tried and how it scored) from code-state (what worked). This creates clean git history (only kept experiments as commits) alongside a comprehensive experiment log (all attempts including failures). [Source: raw/code-research-karpathy-autoresearch.md]
+Every `git commit` before a run is a hypothesis insertion into a content-addressed database. `git reset` is the rollback/discard operation. The branch HEAD always points to the current best-performing hypothesis. `results.tsv` is deliberately gitignored to separate outcome-memory (what was tried and how it scored) from code-state (what worked). This creates clean git history (only kept experiments as commits) alongside a comprehensive experiment log (all attempts including failures). [Source: raw/code-research-karpathy-autoresearch-2026-04-15.md]
 
 ### Fixed-Budget Evaluation
 
-Every experiment trains for exactly 5 minutes (`TIME_BUDGET = 300` in prepare.py, immutable). This makes val_bpb directly comparable across all experiments without controlling for compute cost. The 10-step warmup exclusion (`if step > 10 and total_training_time >= TIME_BUDGET: break`) surgically removes torch.compile overhead from the budget. This is a convergence proxy, not convergence detection -- the outer loop has no stopping criterion and runs until human interruption. [Source: raw/code-research-karpathy-autoresearch.md]
+Every experiment trains for exactly 5 minutes (`TIME_BUDGET = 300` in prepare.py, immutable). This makes val_bpb directly comparable across all experiments without controlling for compute cost. The 10-step warmup exclusion (`if step > 10 and total_training_time >= TIME_BUDGET: break`) surgically removes torch.compile overhead from the budget. This is a convergence proxy, not convergence detection -- the outer loop has no stopping criterion and runs until human interruption. [Source: raw/code-research-karpathy-autoresearch-2026-04-15.md]
 
 ### Minimal-Signal Extraction
 
-Training output is redirected to run.log (`> run.log 2>&1` with the explicit instruction "do NOT use tee or let output flood your context"). Only 2 scalars are extracted via `grep "^val_bpb:\|^peak_vram_mb:" run.log`. Each experiment adds ~3-5 lines to the agent's context instead of 630 lines of training output. This is an explicit anti-context-bloat pattern. [Source: raw/code-research-karpathy-autoresearch.md]
+Training output is redirected to run.log (`> run.log 2>&1` with the explicit instruction "do NOT use tee or let output flood your context"). Only 2 scalars are extracted via `grep "^val_bpb:\|^peak_vram_mb:" run.log`. Each experiment adds ~3-5 lines to the agent's context instead of 630 lines of training output. This is an explicit anti-context-bloat pattern. [Source: raw/code-research-karpathy-autoresearch-2026-04-15.md]
 
 ### Structural Immutability
 
-The boundary between mutable code (train.py -- "the file you modify") and immutable evaluation (prepare.py -- "do not modify") is enforced by file separation + natural language contract. The evaluation oracle (`evaluate_bpb` in prepare.py) is structurally protected from the agent. The simplicity criterion adds a second optimization objective: "A 0.001 val_bpb improvement that adds 20 lines of hacky code? Probably not worth it." This makes the loop multi-objective (metric + simplicity). [Source: raw/code-research-karpathy-autoresearch.md]
+The boundary between mutable code (train.py -- "the file you modify") and immutable evaluation (prepare.py -- "do not modify") is enforced by file separation + natural language contract. The evaluation oracle (`evaluate_bpb` in prepare.py) is structurally protected from the agent. The simplicity criterion adds a second optimization objective: "A 0.001 val_bpb improvement that adds 20 lines of hacky code? Probably not worth it." This makes the loop multi-objective (metric + simplicity). [Source: raw/code-research-karpathy-autoresearch-2026-04-15.md]
 
 ### Meta-Learning, Not Model Training
 
-Each training run starts from random initialization (`torch.manual_seed(42)`). No model checkpoints are saved. The "progress" accumulated is improvement in code quality (the training recipe), not trained model weights. This is a meta-learning setup: the agent learns a better training algorithm, not a better model. [Source: raw/code-research-karpathy-autoresearch.md]
+Each training run starts from random initialization (`torch.manual_seed(42)`). No model checkpoints are saved. The "progress" accumulated is improvement in code quality (the training recipe), not trained model weights. This is a meta-learning setup: the agent learns a better training algorithm, not a better model. [Source: raw/code-research-karpathy-autoresearch-2026-04-15.md]
 
 ## Adapting Autoresearch for Agent Skills
 
@@ -194,4 +194,4 @@ autocontext implements a pipeline for distilling strategies from frontier models
 - [raw/JayScambler-2033971974284714355.md](../raw/JayScambler-2033971974284714355.md) -- Jay Scambler on autocontext: multi-agent learning system with persistent knowledge accumulation, playbook abstraction, Elo-based progression gating, frontier-to-local distillation, multi-dimensional rubric judging.
 - [raw/arxiv-org-html-2512-20491v1.md](../raw/arxiv-org-html-2512-20491v1.md) -- Ren et al., 2025. Step-DeepResearch: 32B open-source model trained with Atomic Capabilities strategy (planning, info gathering, reflection, report writing) and Checklist-style Judger rewards. 61.4% on Scale AI Research Rubrics.
 - [raw/arxiv-org-html-2501-09136v4.md](../raw/arxiv-org-html-2501-09136v4.md) -- Singh et al., 2025. Agentic RAG survey: evolution from static RAG to agent-driven retrieval with dynamic query reformulation, sufficiency evaluation, and iterative refinement.
-- [raw/code-research-karpathy-autoresearch.md](../raw/code-research-karpathy-autoresearch.md) -- First-hand source code analysis via /kb-code-research skill, Apr 2026. Deep 3-dimension analysis of the actual autoresearch codebase: prose-as-control-flow, git-as-experiment-database, fixed-budget evaluation, structural immutability, meta-learning pattern.
+- [raw/code-research-karpathy-autoresearch-2026-04-15.md](../raw/code-research-karpathy-autoresearch-2026-04-15.md) -- First-hand source code analysis via /kb-code-research skill, Apr 2026. Deep 3-dimension analysis of the actual autoresearch codebase: prose-as-control-flow, git-as-experiment-database, fixed-budget evaluation, structural immutability, meta-learning pattern.

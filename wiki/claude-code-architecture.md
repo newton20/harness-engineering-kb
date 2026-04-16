@@ -14,7 +14,7 @@ sources:
   - raw/rohit4verse-2041548810804211936.md
   - raw/himanshustwts-2038924027411222533.md
   - raw/idoubicc-2039006326882546141.md
-  - raw/code-research-claude-code.md
+  - raw/code-research-claude-code-2026-04-15.md
 source_count: 6
 status: draft
 last_compiled: 2026-04-15
@@ -26,9 +26,9 @@ Claude Code is Anthropic's coding agent and one of the most extensively analyzed
 
 The heart of Claude Code lives in query.ts (1,729 lines of TypeScript). The most important decision is the function signature: an async generator, not a simple while loop. [Source: raw/rohit4verse-2041548810804211936.md]
 
-Internally codenamed **nO**, it is a `while(true)` imperative state machine. Earlier external analysis described this as "the model controls the loop." [Source: raw/Hxlfed14-2028116431876116660.md] First-hand source code analysis reveals a more precise picture: **the code controls the loop, and the model's tool_use block presence is the sole continuation signal.** The code explicitly documents that `stop_reason === 'tool_use'` is unreliable and is NOT used for loop control. Instead, the harness checks whether any `ToolUseBlock` objects appeared during streaming -- if yes, continue; if no, evaluate stop hooks and potentially terminate. [Source: raw/code-research-claude-code.md]
+Internally codenamed **nO**, it is a `while(true)` imperative state machine. Earlier external analysis described this as "the model controls the loop." [Source: raw/Hxlfed14-2028116431876116660.md] First-hand source code analysis reveals a more precise picture: **the code controls the loop, and the model's tool_use block presence is the sole continuation signal.** The code explicitly documents that `stop_reason === 'tool_use'` is unreliable and is NOT used for loop control. Instead, the harness checks whether any `ToolUseBlock` objects appeared during streaming -- if yes, continue; if no, evaluate stop hooks and potentially terminate. [Source: raw/code-research-claude-code-2026-04-15.md]
 
-The loop has 10+ distinct termination reasons (`completed`, `blocking_limit`, `model_error`, `aborted_streaming`, `aborted_tools`, `hook_stopped`, `stop_hook_prevented`, `prompt_too_long`, `image_error`, `max_turns`) and multiple labeled `continue` transitions for recovery paths (collapse drain retry, reactive compact retry, output token escalation, stop hook blocking). [Source: raw/code-research-claude-code.md]
+The loop has 10+ distinct termination reasons (`completed`, `blocking_limit`, `model_error`, `aborted_streaming`, `aborted_tools`, `hook_stopped`, `stop_hook_prevented`, `prompt_too_long`, `image_error`, `max_turns`) and multiple labeled `continue` transitions for recovery paths (collapse drain retry, reactive compact retry, output token escalation, stop hook blocking). [Source: raw/code-research-claude-code-2026-04-15.md]
 
 The async generator form provides five properties that a simple while loop lacks: streaming (users see the model working character by character), cancellation (AbortSignal threaded through every layer), composability (REPL UI, sub-agents, and tests all consume the same generator), backpressure (production pauses when the consumer stops pulling), and in-loop error recovery. [Source: raw/rohit4verse-2041548810804211936.md]
 
@@ -44,7 +44,7 @@ Each iteration runs through five phases:
 
 ## The Tool Set: Primitives Over Integrations
 
-First-hand source analysis reveals **~50+ registered tools** across categories (the exact count depends on feature flags and environment). Earlier external analysis reported ~18-20 primitives, which reflects the core set visible to external users. The full tool registry in `tools.ts` includes ant-internal, experimental, and MCP-generated tools beyond the core set. [Source: raw/code-research-claude-code.md]
+First-hand source analysis reveals **~50+ registered tools** across categories (the exact count depends on feature flags and environment). Earlier external analysis reported ~18-20 primitives, which reflects the core set visible to external users. The full tool registry in `tools.ts` includes ant-internal, experimental, and MCP-generated tools beyond the core set. [Source: raw/code-research-claude-code-2026-04-15.md]
 
 The core tools visible to users are organized in four categories:
 
@@ -77,11 +77,11 @@ A Bash command that dumps 1MB of logs would fill the context window if passed ra
 
 ### Deferred Tool Loading via ToolSearchTool
 
-First-hand source analysis reveals a sophisticated deferred loading system not documented in external write-ups. All MCP tools and flagged built-ins start as "deferred" -- the model sees only their names, not their schemas. To use a deferred tool, the model must first call `ToolSearchTool` with a query (exact name via `select:ToolA,ToolB` or keyword search). ToolSearchTool returns `tool_reference` content blocks (a beta API type) that the API expands into full schemas at inference time. [Source: raw/code-research-claude-code.md]
+First-hand source analysis reveals a sophisticated deferred loading system not documented in external write-ups. All MCP tools and flagged built-ins start as "deferred" -- the model sees only their names, not their schemas. To use a deferred tool, the model must first call `ToolSearchTool` with a query (exact name via `select:ToolA,ToolB` or keyword search). ToolSearchTool returns `tool_reference` content blocks (a beta API type) that the API expands into full schemas at inference time. [Source: raw/code-research-claude-code-2026-04-15.md]
 
-Discovered tools persist via message history scanning (`extractDiscoveredToolNames`), surviving even compaction through `compactMetadata.preCompactDiscoveredTools`. Delta notifications (`deferred_tools_delta` attachment messages) announce newly added/removed tools between turns without requiring a full re-scan. The entire deferred loading mechanism depends on a custom API content type (`tool_reference`) that only works with first-party Anthropic endpoints. [Source: raw/code-research-claude-code.md]
+Discovered tools persist via message history scanning (`extractDiscoveredToolNames`), surviving even compaction through `compactMetadata.preCompactDiscoveredTools`. Delta notifications (`deferred_tools_delta` attachment messages) announce newly added/removed tools between turns without requiring a full re-scan. The entire deferred loading mechanism depends on a custom API content type (`tool_reference`) that only works with first-party Anthropic endpoints. [Source: raw/code-research-claude-code-2026-04-15.md]
 
-The deferred loading system reduces the baseline tool schema cost from ~11K tokens to near-zero for unused tools -- critical when the full tool set exceeds 50 tools with MCP servers connected. [Source: raw/code-research-claude-code.md]
+The deferred loading system reduces the baseline tool schema cost from ~11K tokens to near-zero for unused tools -- critical when the full tool set exceeds 50 tools with MCP servers connected. [Source: raw/code-research-claude-code-2026-04-15.md]
 
 ### Tool Evolution: From TodoWrite to Task
 
@@ -126,13 +126,13 @@ Higher levels override lower ones. An @include directive enables composition. En
 
 ## Memory Architecture
 
-First-hand source code analysis reveals **five distinct memory systems operating in parallel**, beyond what external analysis documented: [Source: raw/code-research-claude-code.md]
+First-hand source code analysis reveals **five distinct memory systems operating in parallel**, beyond what external analysis documented: [Source: raw/code-research-claude-code-2026-04-15.md]
 
-1. **CLAUDE.md hierarchy** (6 priority levels: managed → user → project → local → AutoMem → TeamMem). Files closer to CWD have higher priority. Supports `@include` directives (depth 5) and `paths:` frontmatter glob-scoping. Max 40,000 chars per file. [Source: raw/code-research-claude-code.md]
-2. **Memdir / Auto Memory** (`~/.claude/projects/<sanitized-git-root>/memory/`). MEMORY.md (max 200 lines / 25KB) as index + individual topic files with YAML frontmatter (types: `user`, `feedback`, `project`, `reference`). Always loaded at session start. [Source: raw/code-research-claude-code.md]
-3. **extractMemories background agent** -- a forked subagent that fires after each query loop turn (fire-and-forget). Uses `sideQuery` with Sonnet to rank relevance of existing memories (a mini RAG pipeline). Up to 5 memories injected per turn via `<system-reminder>`. Mutual exclusion with main agent: if the main agent already wrote to memdir, the fork is skipped. [Source: raw/code-research-claude-code.md]
-4. **Session Memory** (gated behind `tengu_session_memory`). Running notes at `~/.claude/<session-id>/session-memory/`. 8-section structured template (Current State, Task Spec, Files and Functions, Workflow, Errors, Learnings, Key Results, Worklog). Max 12,000 tokens total. Fires as a forked subagent when token + tool-call thresholds are both met. [Source: raw/code-research-claude-code.md]
-5. **Prompt History** (`~/.claude/history.jsonl`). Shell-style up-arrow recall. Max 100 entries per project. Large pastes stored by SHA-256 hash. [Source: raw/code-research-claude-code.md]
+1. **CLAUDE.md hierarchy** (6 priority levels: managed → user → project → local → AutoMem → TeamMem). Files closer to CWD have higher priority. Supports `@include` directives (depth 5) and `paths:` frontmatter glob-scoping. Max 40,000 chars per file. [Source: raw/code-research-claude-code-2026-04-15.md]
+2. **Memdir / Auto Memory** (`~/.claude/projects/<sanitized-git-root>/memory/`). MEMORY.md (max 200 lines / 25KB) as index + individual topic files with YAML frontmatter (types: `user`, `feedback`, `project`, `reference`). Always loaded at session start. [Source: raw/code-research-claude-code-2026-04-15.md]
+3. **extractMemories background agent** -- a forked subagent that fires after each query loop turn (fire-and-forget). Uses `sideQuery` with Sonnet to rank relevance of existing memories (a mini RAG pipeline). Up to 5 memories injected per turn via `<system-reminder>`. Mutual exclusion with main agent: if the main agent already wrote to memdir, the fork is skipped. [Source: raw/code-research-claude-code-2026-04-15.md]
+4. **Session Memory** (gated behind `tengu_session_memory`). Running notes at `~/.claude/<session-id>/session-memory/`. 8-section structured template (Current State, Task Spec, Files and Functions, Workflow, Errors, Learnings, Key Results, Worklog). Max 12,000 tokens total. Fires as a forked subagent when token + tool-call thresholds are both met. [Source: raw/code-research-claude-code-2026-04-15.md]
+5. **Prompt History** (`~/.claude/history.jsonl`). Shell-style up-arrow recall. Max 100 entries per project. Large pastes stored by SHA-256 hash. [Source: raw/code-research-claude-code-2026-04-15.md]
 
 Earlier external analysis identified the design principles behind this system: [Source: raw/himanshustwts-2038924027411222533.md]
 
@@ -147,26 +147,26 @@ Earlier external analysis identified the design principles behind this system: [
 
 ## Context Window Management: The 4-Layer Compaction Cascade
 
-Claude Code supports unlimited conversation length through a cascade of compaction strategies that can ALL fire in the same loop iteration. Ordered cheapest to most expensive: [Source: raw/rohit4verse-2041548810804211936.md] [Source: raw/code-research-claude-code.md]
+Claude Code supports unlimited conversation length through a cascade of compaction strategies that can ALL fire in the same loop iteration. Ordered cheapest to most expensive: [Source: raw/rohit4verse-2041548810804211936.md] [Source: raw/code-research-claude-code-2026-04-15.md]
 
-1. **Snip** (`HISTORY_SNIP`): Client-side. Drops oldest messages above a token threshold. Fast, lossless from the model's perspective. [Source: raw/code-research-claude-code.md]
-2. **Microcompact** (`microCompact.ts`): Client-side. Truncates/clears old `tool_result` content inline for compactable tools (Read, Bash, Grep, Glob, WebFetch, WebSearch, FileEdit, FileWrite). Preserves message structure, empties body. Threshold: ~180K tokens, keeps last ~40K. [Source: raw/code-research-claude-code.md]
-3. **API-level microcompact** (`apiMicrocompact.ts`): Server-side. Passes `context_management` config to the API (`clear_tool_uses_20250919`, `clear_thinking_20251015`). The API server edits the context directly. [Source: raw/code-research-claude-code.md]
-4. **Auto-compact** (`autoCompact.ts`): Full conversation summary via a **forked agent** sharing the parent's prompt cache prefix. Fires at ~87-91% context fill (context window minus 20K output reserve minus 13K buffer). The fork produces a structured 9-section summary (Primary Request, Key Technical Concepts, Files/Code, Errors, Problem Solving, All User Messages, Pending Tasks, Current Work, Optional Next Step). Circuit breaker: 3 consecutive autocompact failures suppresses further attempts. [Source: raw/code-research-claude-code.md]
+1. **Snip** (`HISTORY_SNIP`): Client-side. Drops oldest messages above a token threshold. Fast, lossless from the model's perspective. [Source: raw/code-research-claude-code-2026-04-15.md]
+2. **Microcompact** (`microCompact.ts`): Client-side. Truncates/clears old `tool_result` content inline for compactable tools (Read, Bash, Grep, Glob, WebFetch, WebSearch, FileEdit, FileWrite). Preserves message structure, empties body. Threshold: ~180K tokens, keeps last ~40K. [Source: raw/code-research-claude-code-2026-04-15.md]
+3. **API-level microcompact** (`apiMicrocompact.ts`): Server-side. Passes `context_management` config to the API (`clear_tool_uses_20250919`, `clear_thinking_20251015`). The API server edits the context directly. [Source: raw/code-research-claude-code-2026-04-15.md]
+4. **Auto-compact** (`autoCompact.ts`): Full conversation summary via a **forked agent** sharing the parent's prompt cache prefix. Fires at ~87-91% context fill (context window minus 20K output reserve minus 13K buffer). The fork produces a structured 9-section summary (Primary Request, Key Technical Concepts, Files/Code, Errors, Problem Solving, All User Messages, Pending Tasks, Current Work, Optional Next Step). Circuit breaker: 3 consecutive autocompact failures suppresses further attempts. [Source: raw/code-research-claude-code-2026-04-15.md]
 
-**Post-compact recovery**: After autocompact, up to 5 recently-read files (50K token budget, 5K/file) are re-injected as attachments via `createPostCompactFileAttachments`. Invoked skill content survives compaction intentionally (never cleared). Deferred tool schemas and agent/MCP listings are re-announced via delta messages. The model is told the full transcript path so it can grep `.jsonl` files as a "last resort" to recover details lost in compaction. [Source: raw/code-research-claude-code.md]
+**Post-compact recovery**: After autocompact, up to 5 recently-read files (50K token budget, 5K/file) are re-injected as attachments via `createPostCompactFileAttachments`. Invoked skill content survives compaction intentionally (never cleared). Deferred tool schemas and agent/MCP listings are re-announced via delta messages. The model is told the full transcript path so it can grep `.jsonl` files as a "last resort" to recover details lost in compaction. [Source: raw/code-research-claude-code-2026-04-15.md]
 
-**Reactive compact** (experimental): Triggered AFTER a 413 "prompt too long" API error rather than proactively. Same mechanism but as recovery rather than prevention. [Source: raw/code-research-claude-code.md]
+**Reactive compact** (experimental): Triggered AFTER a 413 "prompt too long" API error rather than proactively. Same mechanism but as recovery rather than prevention. [Source: raw/code-research-claude-code-2026-04-15.md]
 
 The hierarchy matters: cheapest strategy runs first, most expensive fires only when nothing else works. Microcompact and snip handle a large percentage of cases with zero model calls. [Source: raw/rohit4verse-2041548810804211936.md]
 
 ### 6-Layer Compaction Pipeline (Revised Taxonomy)
 
-Re-run source analysis reveals the compaction stack is more precisely described as 6 layers rather than 4. The full sequence from lightest to heaviest: (1) **snip** -- removes oldest history slices; (2) **microcompact** -- has three internal sub-paths: time-based (clears old tool results beyond a time threshold), cached (clears results where cache points remain valid), and legacy-removed (clears results for tools that no longer exist); (3) **context collapse** -- runs BEFORE autocompact to consolidate redundant assistant turns and preserve granularity in the remaining history; (4) **autocompact** -- has two backends: session memory (reads the existing session-memory file with zero API calls if the background SessionMemory fork has already run) or legacy summarization (spawns a forked agent to produce the 9-section summary); (5) **blocking limit** -- hard ceiling that raises an error if the previous layers were insufficient; (6) **reactive compact** -- fires after a live 413 rejection from the API as last-resort recovery. [Source: raw/code-research-claude-code.md]
+Re-run source analysis reveals the compaction stack is more precisely described as 6 layers rather than 4. The full sequence from lightest to heaviest: (1) **snip** -- removes oldest history slices; (2) **microcompact** -- has three internal sub-paths: time-based (clears old tool results beyond a time threshold), cached (clears results where cache points remain valid), and legacy-removed (clears results for tools that no longer exist); (3) **context collapse** -- runs BEFORE autocompact to consolidate redundant assistant turns and preserve granularity in the remaining history; (4) **autocompact** -- has two backends: session memory (reads the existing session-memory file with zero API calls if the background SessionMemory fork has already run) or legacy summarization (spawns a forked agent to produce the 9-section summary); (5) **blocking limit** -- hard ceiling that raises an error if the previous layers were insufficient; (6) **reactive compact** -- fires after a live 413 rejection from the API as last-resort recovery. [Source: raw/code-research-claude-code-2026-04-15.md]
 
 ### Asymmetric Tool Clearing in Microcompact
 
-Microcompact does not clear all tool results uniformly. Write-tool history (FileEdit, FileWrite) is never cleared, even when other tool results are evicted. Read-tool results (Read, Grep, Bash output, WebFetch) are cleared first because they are reconstructable -- the agent can re-read any file or re-run any search. The write-tool exemption preserves the audit trail of what the agent actually changed, which cannot be reconstructed from the filesystem alone. This asymmetry means the compaction policy encodes domain knowledge about which history is recoverable versus which is authoritative. [Source: raw/code-research-claude-code.md]
+Microcompact does not clear all tool results uniformly. Write-tool history (FileEdit, FileWrite) is never cleared, even when other tool results are evicted. Read-tool results (Read, Grep, Bash output, WebFetch) are cleared first because they are reconstructable -- the agent can re-read any file or re-run any search. The write-tool exemption preserves the audit trail of what the agent actually changed, which cannot be reconstructed from the filesystem alone. This asymmetry means the compaction policy encodes domain knowledge about which history is recoverable versus which is authoritative. [Source: raw/code-research-claude-code-2026-04-15.md]
 
 ## Progressive Disclosure
 
@@ -196,7 +196,7 @@ Hooks serve as the escape hatch: a script receives tool call details and returns
 
 ### Permission Denial Tracking as Circuit Breaker
 
-In auto mode (headless), Claude Code tracks classifier-level permission denials as a circuit breaker signal. Three consecutive denials OR twenty total denials trigger an `AbortError` that terminates the session. This creates a direct, measurable path from classifier behavior to loop termination: a model that repeatedly attempts disallowed tool calls will cause the harness to halt rather than loop indefinitely. The two thresholds -- consecutive (rapid failure burst) and cumulative (slow-burn pattern) -- catch different failure modes: a stuck agent vs. a persistently policy-violating agent. [Source: raw/code-research-claude-code.md]
+In auto mode (headless), Claude Code tracks classifier-level permission denials as a circuit breaker signal. Three consecutive denials OR twenty total denials trigger an `AbortError` that terminates the session. This creates a direct, measurable path from classifier behavior to loop termination: a model that repeatedly attempts disallowed tool calls will cause the harness to halt rather than loop indefinitely. The two thresholds -- consecutive (rapid failure burst) and cumulative (slow-burn pattern) -- catch different failure modes: a stuck agent vs. a persistently policy-violating agent. [Source: raw/code-research-claude-code-2026-04-15.md]
 
 ## The Error Recovery System
 
@@ -212,28 +212,28 @@ Backoff formula: `delay = min(500ms * 2^attempt, 32s) + random(0, 0.25 * baseDel
 
 ## Multi-Agent Architecture
 
-First-hand source analysis reveals **three distinct multi-agent modes** coexisting in Claude Code: [Source: raw/code-research-claude-code.md]
+First-hand source analysis reveals **three distinct multi-agent modes** coexisting in Claude Code: [Source: raw/code-research-claude-code-2026-04-15.md]
 
 ### Standard Subagents (AgentTool)
-Sub-agents start with zero parent context -- a fresh `[createUserMessage({content: prompt})]` is the entire conversation history. System prompt is rebuilt from scratch. Tools are assembled independently. This means the parent must write self-contained prompts with specific file paths and line numbers. The coordinator mode prompt explicitly warns: "Workers can't see your conversation. Every prompt must be self-contained." and forbids "Based on your findings, fix the bug" (delegating understanding). [Source: raw/code-research-claude-code.md]
+Sub-agents start with zero parent context -- a fresh `[createUserMessage({content: prompt})]` is the entire conversation history. System prompt is rebuilt from scratch. Tools are assembled independently. This means the parent must write self-contained prompts with specific file paths and line numbers. The coordinator mode prompt explicitly warns: "Workers can't see your conversation. Every prompt must be self-contained." and forbids "Based on your findings, fix the bug" (delegating understanding). [Source: raw/code-research-claude-code-2026-04-15.md]
 
 Sub-agents that modify code get their own **git worktree** -- one agent, one worktree, parallel agents on separate branches. Changes merge when verified. [Source: raw/rohit4verse-2041548810804211936.md]
 
 ### Fork Subagents (experimental, `FORK_SUBAGENT` gate)
-Fork children **inherit the parent's full conversation history** and byte-identical system prompt. The fork builds an API request prefix that maximizes prompt cache hits -- making the fork nearly free for short tasks. Fork children cannot themselves fork (recursive prevention via both context-object check and message-history scan). Communication back to the parent is via tool_result (sync) or `<task-notification>` XML injected as a user-role message (async). [Source: raw/code-research-claude-code.md]
+Fork children **inherit the parent's full conversation history** and byte-identical system prompt. The fork builds an API request prefix that maximizes prompt cache hits -- making the fork nearly free for short tasks. Fork children cannot themselves fork (recursive prevention via both context-object check and message-history scan). Communication back to the parent is via tool_result (sync) or `<task-notification>` XML injected as a user-role message (async). [Source: raw/code-research-claude-code-2026-04-15.md]
 
-The forked agent pattern is Claude Code's fundamental building block for background work: autocompact forks a summarizer, extractMemories forks a background memory writer, SessionMemory forks a note-taker, and sub-agents can fork with full parent context. All share the parent's prompt cache prefix. [Source: raw/code-research-claude-code.md]
+The forked agent pattern is Claude Code's fundamental building block for background work: autocompact forks a summarizer, extractMemories forks a background memory writer, SessionMemory forks a note-taker, and sub-agents can fork with full parent context. All share the parent's prompt cache prefix. [Source: raw/code-research-claude-code-2026-04-15.md]
 
-**Fork mode as a fourth multi-agent mode.** Re-run analysis classifies Fork as a distinct fourth mode alongside Standard Subagents, Swarm Teammates, and Coordinator Mode. Its defining property is byte-exact conversation history inheritance: the child receives the parent's full message list unchanged, which maximizes prompt cache hits and makes the fork nearly free for short background tasks. The anti-recursion guard operates at two levels: a context-object flag (`isFork`) prevents a fork from forking, and a message-history scan detects the `<fork-boilerplate>` tag to catch cases where the flag is absent (e.g., a fork created from a restored session). [Source: raw/code-research-claude-code.md]
+**Fork mode as a fourth multi-agent mode.** Re-run analysis classifies Fork as a distinct fourth mode alongside Standard Subagents, Swarm Teammates, and Coordinator Mode. Its defining property is byte-exact conversation history inheritance: the child receives the parent's full message list unchanged, which maximizes prompt cache hits and makes the fork nearly free for short background tasks. The anti-recursion guard operates at two levels: a context-object flag (`isFork`) prevents a fork from forking, and a message-history scan detects the `<fork-boilerplate>` tag to catch cases where the flag is absent (e.g., a fork created from a restored session). [Source: raw/code-research-claude-code-2026-04-15.md]
 
 ### Swarm Teammates (experimental, `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`)
-Long-lived peer agents running in separate OS processes (tmux panes or iTerm2 split panes). Communication via file-based mailbox at `~/.claude/teams/{team}/inboxes/{name}.json` with proper-lockfile locking. Shared task list at `~/.claude/tasks/{team-name}/` with ownership via `TaskUpdate({owner: name})`. [Source: raw/code-research-claude-code.md]
+Long-lived peer agents running in separate OS processes (tmux panes or iTerm2 split panes). Communication via file-based mailbox at `~/.claude/teams/{team}/inboxes/{name}.json` with proper-lockfile locking. Shared task list at `~/.claude/tasks/{team-name}/` with ownership via `TaskUpdate({owner: name})`. [Source: raw/code-research-claude-code-2026-04-15.md]
 
 ### Coordinator Mode
-A dedicated `CLAUDE_CODE_COORDINATOR_MODE=1` replaces the default system prompt with a structured Research -> Synthesis -> Implementation -> Verification workflow. The coordinator sees only 4 tools (AgentTool, TaskStopTool, SendMessageTool, SyntheticOutputTool) -- pure orchestration with no direct file/shell access. All spawns are forced async. [Source: raw/code-research-claude-code.md]
+A dedicated `CLAUDE_CODE_COORDINATOR_MODE=1` replaces the default system prompt with a structured Research -> Synthesis -> Implementation -> Verification workflow. The coordinator sees only 4 tools (AgentTool, TaskStopTool, SendMessageTool, SyntheticOutputTool) -- pure orchestration with no direct file/shell access. All spawns are forced async. [Source: raw/code-research-claude-code-2026-04-15.md]
 
 ### Auto-Background Escalation
-Sync agents exceeding 120 seconds are automatically promoted to background via `Promise.race()`. The agent continues uninterrupted; only the parent's waiting behavior changes. [Source: raw/code-research-claude-code.md]
+Sync agents exceeding 120 seconds are automatically promoted to background via `Promise.race()`. The agent continues uninterrupted; only the parent's waiting behavior changes. [Source: raw/code-research-claude-code-2026-04-15.md]
 
 Three spawn backends: in-process (direct Node.js, fastest, shared memory), tmux pane (terminal multiplexer isolation, each agent visible in its own tab), remote (CCR environment, full machine isolation). Task coordination uses a disk-backed task list with file-based locking at `~/.claude/tasks/<taskListId>/<taskId>.json`. [Source: raw/rohit4verse-2041548810804211936.md]
 
@@ -274,11 +274,11 @@ Several principles emerge from Claude Code's architecture:
 
 ## Open Questions
 
-- **RESOLVED**: The 50+ tools vs. ~18-20 primitives discrepancy is explained by feature flags and environment. First-hand analysis confirms ~50+ registered tools in `tools.ts`, but many are ant-internal-only, experimental, or MCP-generated. The ~18-20 count in external write-ups reflects the user-visible core set. [Source: raw/code-research-claude-code.md]
+- **RESOLVED**: The 50+ tools vs. ~18-20 primitives discrepancy is explained by feature flags and environment. First-hand analysis confirms ~50+ registered tools in `tools.ts`, but many are ant-internal-only, experimental, or MCP-generated. The ~18-20 count in external write-ups reflects the user-visible core set. [Source: raw/code-research-claude-code-2026-04-15.md]
 - How the async generator pattern performs at scale compared to simpler while-loop architectures in other production agents. [Source: raw/rohit4verse-2041548810804211936.md]
 - Whether the memory architecture's "if it's derivable, don't persist it" principle generalizes to non-coding agent domains. [Source: raw/himanshustwts-2038924027411222533.md]
-- How the `tool_reference` beta API type for deferred tool loading will evolve -- currently only works with first-party Anthropic endpoints. [Source: raw/code-research-claude-code.md]
-- Whether the extractMemories background agent's RAG pipeline (sideQuery ranking of existing memories) is effective in practice or creates noise. [Source: raw/code-research-claude-code.md]
+- How the `tool_reference` beta API type for deferred tool loading will evolve -- currently only works with first-party Anthropic endpoints. [Source: raw/code-research-claude-code-2026-04-15.md]
+- Whether the extractMemories background agent's RAG pipeline (sideQuery ranking of existing memories) is effective in practice or creates noise. [Source: raw/code-research-claude-code-2026-04-15.md]
 
 ## Sources
 
@@ -287,4 +287,4 @@ Several principles emerge from Claude Code's architecture:
 - [raw/rohit4verse-2041548810804211936.md](../raw/rohit4verse-2041548810804211936.md) -- Rohit (@rohit4verse), Apr 2026. Deep source code analysis of Claude Code's 331-module architecture: async generator loop, compaction, permissions, sub-agents, extensibility.
 - [raw/himanshustwts-2038924027411222533.md](../raw/himanshustwts-2038924027411222533.md) -- Himanshu (@himanshustwts), Mar 2026. Memory architecture analysis: index-not-storage, autoDream, staleness, skeptical retrieval.
 - [raw/idoubicc-2039006326882546141.md](../raw/idoubicc-2039006326882546141.md) -- Idoubi (@idoubicc), Mar 2026. Open-agent-sdk: open-source Claude Code logic extraction for cloud-scale agent deployment.
-- [raw/code-research-claude-code.md](../raw/code-research-claude-code.md) -- First-hand source code analysis via /kb-code-research skill, Apr 2026 (re-run). Deep analysis: imperative loop architecture, 5 memory systems, 6-layer compaction cascade, 50+ tools with deferred loading, 4 multi-agent modes (including Fork), permission denial circuit breaker, asymmetric tool clearing, prompt cache-first design.
+- [raw/code-research-claude-code-2026-04-15.md](../raw/code-research-claude-code-2026-04-15.md) -- First-hand source code analysis via /kb-code-research skill, Apr 2026 (re-run). Deep analysis: imperative loop architecture, 5 memory systems, 6-layer compaction cascade, 50+ tools with deferred loading, 4 multi-agent modes (including Fork), permission denial circuit breaker, asymmetric tool clearing, prompt cache-first design.
