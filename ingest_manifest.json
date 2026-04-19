@@ -19,12 +19,6 @@
     "type": "x_article",
     "fetched_at": "2026-04-13T08:06:46.819Z"
   },
-  "https://x.com/hwchase17/status/2042978500567609738?s=20": {
-    "status": "fetched",
-    "file": "raw/hwchase17-2042978500567609738.md",
-    "type": "x_article",
-    "fetched_at": "2026-04-13T08:06:58.340Z"
-  },
   "https://x.com/sarahwooders/status/2040121230473457921?s=20": {
     "status": "fetched",
     "file": "raw/sarahwooders-2040121230473457921.md",
@@ -226,5 +220,12 @@
     "file": "raw/machinelearningmastery-com-the-roadmap-to-mastering-agentic-ai-design-patterns.md",
     "type": "article",
     "fetched_at": "2026-04-14T02:56:29.653Z"
+  },
+  "https://x.com/hwchase17/status/2042978500567609738?s=20": {
+    "status": "fetched",
+    "file": "raw/hwchase17-2042978500567609738.md",
+    "type": "x_article",
+    "source_method": "x_api_v2_article_plain_text",
+    "fetched_at": "2026-04-17T21:15:42.587Z"
   }
 }
