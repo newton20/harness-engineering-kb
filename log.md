@@ -129,3 +129,6 @@ Append-only log of all operations.
 - **2026-04-23T17:16:17.289Z** — Ingested PDF via pdftotext: https://arxiv.org/pdf/2604.15034 → raw/arxiv-org-pdf-2604-15034.md
 - **2026-04-23T17:16:17.291Z** — Batch ingest complete: 1 fetched, 0 skipped, 0 failed from 1 URLs
 - **2026-04-23** — Codex review on kb-skills PR #2 surfaced 2 P2 findings in `scripts/ingest.js`. Fixed both: (1) `note_tweet.text` content now saves as `type: tweet` in both manifest and frontmatter (was `x_article`), with default title "Long tweet by @handle"; (2) `downloadBinary` and `downloadImage` now handle 301/302/303/307/308 redirects and resolve relative Location headers via `new URL(location, currentUrl).toString()` (was only 301/302, always-absolute). `downloadImage` also no longer leaks the write stream on redirect. Re-verified end-to-end against the known note_tweet and the arxiv PDF.
+
+- **2026-04-23T17:39:11.515Z** — Ingested PDF via pdftotext: https://arxiv.org/pdf/2604.15034 → raw/arxiv-org-pdf-2604-15034.md
+- **2026-04-23T17:39:11.520Z** — Batch ingest complete: 1 fetched, 0 skipped, 0 failed from 1 URLs
