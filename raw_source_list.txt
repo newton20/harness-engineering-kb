@@ -26,3 +26,11 @@ https://www.letta.com/blog/benchmarking-ai-agent-memory
 https://arxiv.org/html/2603.03329v1
 https://openai.com/index/harness-engineering/
 https://openai.com/index/unlocking-the-codex-harness/https://simonwillison.net/2025/Sep/30/designing-agentic-loops/
+https://www.langchain.com/blog/improving-deep-agents-with-harness-engineering
+https://x.com/garrytan/status/2043198780800197025
+https://x.com/garrytan/status/2043198783006355747
+https://x.com/hwchase17/status/2043354478074581227
+https://x.com/garrytan/status/2043566215927328955
+https://x.com/garrytan/status/2043565174066475472
+https://x.com/jasonkneen/status/2043435856849940818
+https://gist.github.com/jasonkneen/4c065df2d7a95610e4fd30c3e3398b17
