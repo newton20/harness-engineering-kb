@@ -4,12 +4,8 @@ source: https://arxiv.org/pdf/2604.15034
 date: 2026-04-23
 fetched: 2026-04-23
 type: paper
-status: compiled
+status: raw
 fetch_method: pdftotext
-compiled_to:
-  - wiki/self-evolving-agents.md
-  - wiki/autoresearch-and-self-improvement.md
-compiled_date: 2026-04-23
 ---
 
 # Autogenesis: A Self-Evolving Agent Protocol
