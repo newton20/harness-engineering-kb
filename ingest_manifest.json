@@ -227,5 +227,115 @@
     "type": "x_article",
     "source_method": "x_api_v2_article_plain_text",
     "fetched_at": "2026-04-17T21:15:42.587Z"
+  },
+  "https://x.com/garrytan/status/2043198780800197025": {
+    "status": "fetched",
+    "file": "raw/garrytan-2043198780800197025.md",
+    "type": "tweet",
+    "source_method": "transcribed_from_screenshot",
+    "fetched_at": "2026-04-18T00:00:00.000Z"
+  },
+  "https://x.com/garrytan/status/2043198783006355747": {
+    "status": "fetched",
+    "file": "raw/garrytan-2043198783006355747.md",
+    "type": "tweet",
+    "source_method": "transcribed_from_screenshot",
+    "fetched_at": "2026-04-18T00:00:00.000Z"
+  },
+  "https://x.com/hwchase17/status/2043354478074581227": {
+    "status": "fetched",
+    "file": "raw/hwchase17-2043354478074581227.md",
+    "type": "tweet",
+    "source_method": "transcribed_from_screenshot",
+    "fetched_at": "2026-04-18T00:00:00.000Z"
+  },
+  "https://x.com/garrytan/status/2043566215927328955": {
+    "status": "fetched",
+    "file": "raw/garrytan-2043566215927328955.md",
+    "type": "tweet",
+    "source_method": "transcribed_from_screenshot",
+    "fetched_at": "2026-04-18T00:00:00.000Z"
+  },
+  "https://x.com/garrytan/status/2043565174066475472": {
+    "status": "fetched",
+    "file": "raw/garrytan-2043565174066475472.md",
+    "type": "tweet",
+    "source_method": "transcribed_from_screenshot",
+    "fetched_at": "2026-04-18T00:00:00.000Z"
+  },
+  "https://x.com/jasonkneen/status/2043435856849940818": {
+    "status": "fetched",
+    "file": "raw/jasonkneen-2043435856849940818.md",
+    "type": "tweet",
+    "source_method": "transcribed_from_screenshot",
+    "fetched_at": "2026-04-18T00:00:00.000Z"
+  },
+  "https://gist.github.com/jasonkneen/4c065df2d7a95610e4fd30c3e3398b17": {
+    "status": "fetched",
+    "file": "raw/jasonkneen-cursor-3.0-gist.md",
+    "type": "article",
+    "source_method": "reference_only",
+    "fetched_at": "2026-04-18T00:00:00.000Z"
+  },
+  "https://www.langchain.com/blog/improving-deep-agents-with-harness-engineering": {
+    "status": "fetched",
+    "file": "raw/langchain-com-blog-improving-deep-agents-with-harness-engineering.md",
+    "type": "article",
+    "fetched_at": "2026-04-23T05:53:31.601Z"
+  },
+  "https://arxiv.org/html/2604.14228": {
+    "status": "fetched",
+    "file": "raw/arxiv-org-html-2604-14228.md",
+    "type": "paper",
+    "fetched_at": "2026-04-23T06:03:28.125Z"
+  },
+  "https://x.com/akshay_pachaar/status/2043745099792953508?s=20": {
+    "status": "fetched",
+    "file": "raw/akshay_pachaar-2043745099792953508.md",
+    "type": "x_article",
+    "source_method": "x_api_v2_article_plain_text",
+    "fetched_at": "2026-04-23T16:13:40.691Z"
+  },
+  "https://x.com/garrytan/status/2044479509874020852?s=20": {
+    "status": "fetched",
+    "file": "raw/garrytan-2044479509874020852.md",
+    "type": "x_article",
+    "source_method": "x_api_v2_article_plain_text",
+    "fetched_at": "2026-04-23T16:13:41.376Z"
+  },
+  "https://x.com/walden_yan/status/2047054401341370639?s=20": {
+    "status": "fetched",
+    "file": "raw/walden_yan-2047054401341370639.md",
+    "type": "x_article",
+    "source_method": "x_api_v2_article_plain_text",
+    "fetched_at": "2026-04-23T16:13:42.029Z"
+  },
+  "https://x.com/akshay_pachaar/status/2041146899319971922?s=20": {
+    "status": "fetched",
+    "file": "raw/akshay_pachaar-2041146899319971922.md",
+    "type": "x_article",
+    "source_method": "x_api_v2_article_plain_text",
+    "fetched_at": "2026-04-23T16:13:42.666Z"
+  },
+  "https://x.com/garrytan/status/2046876981711769720?s=20": {
+    "status": "fetched",
+    "file": "raw/garrytan-2046876981711769720.md",
+    "type": "x_article",
+    "source_method": "x_api_v2_article_plain_text",
+    "fetched_at": "2026-04-23T16:13:43.328Z"
+  },
+  "https://x.com/akshay_pachaar/status/2045404494641733962?s=20": {
+    "status": "fetched",
+    "file": "raw/akshay_pachaar-2045404494641733962.md",
+    "type": "tweet",
+    "source_method": "x_api_v2_note_tweet_text",
+    "fetched_at": "2026-04-23T17:15:48.194Z"
+  },
+  "https://arxiv.org/pdf/2604.15034": {
+    "status": "fetched",
+    "file": "raw/arxiv-org-pdf-2604-15034.md",
+    "type": "paper",
+    "fetch_method": "pdftotext",
+    "fetched_at": "2026-04-23T17:39:11.515Z"
   }
 }

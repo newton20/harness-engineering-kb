@@ -25,9 +25,12 @@ sources:
   - raw/code-research-karpathy-autoresearch-2026-04-15.md
   - raw/code-research-all-hands-ai-openhands-2026-04-15.md
   - raw/code-research-anomalyco-opencode-2026-04-15.md
-source_count: 13
+  - raw/garrytan-2046876981711769720.md
+  - raw/garrytan-2044479509874020852.md
+  - raw/langchain-com-blog-improving-deep-agents-with-harness-engineering.md
+source_count: 16
 status: draft
-last_compiled: 2026-04-15
+last_compiled: 2026-04-23
 ---
 
 # Practical Best Practices
@@ -212,6 +215,47 @@ OpenCode normalizes the system prompt array to exactly two entries on every requ
 
 OpenCode tracks which AGENTS.md files have already been injected into the current session using a per-turn injection registry keyed by file path. Before adding an AGENTS.md file's content to the system prompt, the harness checks whether that file has already been included earlier in the session; if so, it is skipped. This prevents exponential instruction growth in long sessions where many tool calls might each re-trigger AGENTS.md discovery. The pattern generalizes to any harness that dynamically discovers and injects context files: without deduplication, the same file can be injected dozens of times across a long session, silently consuming token budget and potentially confusing the model with repeated identical instructions. [Source: raw/code-research-anomalyco-opencode-2026-04-15.md]
 
+## Skillify: Turn Every Failure Into a Permanent Fix
+
+Garry Tan's April 22, 2026 "skillify" practice operationalizes the universal software-engineering principle *every bug gets a test* for AI agents. Agents screw up. Without intervention, the same screw-up happens again two weeks later with slightly different inputs. "The agent has no memory of the bug, no test for the bug, nothing stops it from recurring." [Source: raw/garrytan-2046876981711769720.md]
+
+The 10-step checklist when a failure gets "skillified":
+
+1. SKILL.md — the contract (name, triggers, rules)
+2. Deterministic code — scripts (no LLM for what code can do)
+3. Unit tests — vitest, pure functions, fixture data
+4. Integration tests — live endpoints, real data
+5. LLM evals — quality + correctness judged by LLM-as-judge
+6. Resolver trigger — entry in AGENTS.md
+7. Resolver eval — verify the trigger actually routes
+8. Check-resolvable + DRY audit — reachability + overlap
+9. E2E smoke test — full pipeline end-to-end
+10. Brain filing rules — where outputs live [Source: raw/garrytan-2046876981711769720.md]
+
+"A feature that doesn't pass all ten is not a skill. It's just code that happens to work today."
+
+The pattern in daily use: prototype in conversation, see it work, say "skillify." The ad-hoc session becomes a durable skill with tests and resolver entry. One word, 10 checks, permanent infrastructure. Full architecture in [Thin Harness, Fat Skills](thin-harness-fat-skills.md); self-evolution context in [Self-Evolving Agents and Skillify](self-evolving-agents.md).
+
+### The Most Honest Eval Heuristic
+
+"Search your conversation history for when you said 'fucking shit' or 'wtf.' Those are the test cases you're missing." [Source: raw/garrytan-2046876981711769720.md]
+
+### Resolver Audits Prevent Silent Drift
+
+After a month of building, Tan found 15% of his agent's skills were unreachable — "capabilities the system had built but couldn't access." **check-resolvable** runs weekly to walk AGENTS.md → SKILL.md → code and find dead links. Three specific checks: (1) every skill directory with a SKILL.md has a resolver entry, (2) every referenced script actually exists, (3) no two skills have overlapping trigger descriptions. [Source: raw/garrytan-2044479509874020852.md] [Source: raw/garrytan-2046876981711769720.md]
+
+## Harness Middleware as a First-Class Practice
+
+LangChain's Trace Analyzer Skill experiment (February 2026) produced a reusable set of middleware patterns that any harness can adopt:
+
+- **PreCompletionChecklistMiddleware** — intercept the agent before exit and force a verification pass against the task spec. Catches the most common failure: agent writes code, rereads its own code, confirms it looks OK, stops. [Source: raw/langchain-com-blog-improving-deep-agents-with-harness-engineering.md]
+- **LocalContextMiddleware** — run on agent start to map cwd, sibling directories, and available tools. Reduces the error surface for search and planning.
+- **LoopDetectionMiddleware** — track per-file edit counts; after N edits to the same file, inject a "consider reconsidering your approach" hint. Catches doom-loops (10+ small variations on the same broken approach).
+- **Time-budget injections** — nudge the agent toward verification before timeouts. "Agents are famously bad at time estimation."
+- **Reasoning sandwich** — xhigh reasoning during planning and verification, moderate during implementation. [Source: raw/langchain-com-blog-improving-deep-agents-with-harness-engineering.md]
+
+LangChain's framing: **"The purpose of the harness engineer is to prepare and deliver context so agents can autonomously complete work."** The middleware layer is how you do that without rewriting the orchestration loop.
+
 ## Summary of Principles
 
 1. Strip everything that is not load-bearing [Source: raw/systematicls-2028814227004395561.md]
@@ -255,6 +299,8 @@ OpenCode tracks which AGENTS.md files have already been injected into the curren
 - [Deep Research Agents](deep-research-agents.md) -- convergence detection, effort scaling, search strategies, and economics of deep research sessions
 - [Agentic Design Patterns](agentic-design-patterns.md) -- ReAct, Reflection, Planning as formal patterns underlying these best practices
 - [Multi-Agent Reliability](multi-agent-reliability.md) -- source reliability via credibility scoring and adversary-resistant multi-agent coordination
+- [Thin Harness, Fat Skills](thin-harness-fat-skills.md) -- the architectural home of skillify and the resolver pattern
+- [Self-Evolving Agents and Skillify](self-evolving-agents.md) -- skillify as a lightweight instantiation of the Autogenesis protocol; LangChain trace-analyzer skill as harness-level self-improvement
 
 ## Open Questions
 
@@ -279,3 +325,6 @@ OpenCode tracks which AGENTS.md files have already been injected into the curren
 - [raw/code-research-openclaw-openclaw-2026-04-15.md](../raw/code-research-openclaw-openclaw-2026-04-15.md) -- Code research, Apr 2026. SOUL.md persona pattern, per-provider schema normalization, streaming JSON argument repair, post-compaction context refresh.
 - [raw/code-research-all-hands-ai-openhands-2026-04-15.md](../raw/code-research-all-hands-ai-openhands-2026-04-15.md) -- Code research, Apr 2026. 5-scenario doom-loop detector with interactive CLI recovery; stuck detection covering repeated actions, action-error cycles, condensation events.
 - [raw/code-research-anomalyco-opencode-2026-04-15.md](../raw/code-research-anomalyco-opencode-2026-04-15.md) -- Code research, Apr 2026. 3-identical-calls doom-loop detector via permission system; two-entry system prompt normalization for cache efficiency; per-turn AGENTS.md injection deduplication.
+- [raw/garrytan-2046876981711769720.md](../raw/garrytan-2046876981711769720.md) -- Garry Tan, Apr 22, 2026. "How to really stop your agents from making the same mistakes" -- skillify 10-step checklist, calendar-recall and context-now concrete skills, the "fucking shit/wtf" eval heuristic, critique of LangChain's "pieces not a practice" gap.
+- [raw/garrytan-2044479509874020852.md](../raw/garrytan-2044479509874020852.md) -- Garry Tan, Apr 15, 2026. "Resolvers" -- check-resolvable weekly audit, 15%-dark capabilities, trigger evals as regression suite for routing.
+- [raw/langchain-com-blog-improving-deep-agents-with-harness-engineering.md](../raw/langchain-com-blog-improving-deep-agents-with-harness-engineering.md) -- Vivek Trivedy, LangChain, Feb 2026. Middleware patterns: PreCompletionChecklistMiddleware (Ralph Wiggum loop), LocalContextMiddleware, LoopDetectionMiddleware, reasoning sandwich. Trace-analyzer skill pattern.

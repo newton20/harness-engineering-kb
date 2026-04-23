@@ -18,9 +18,13 @@ sources:
   - raw/arxiv-org-html-2501-09136v4.md
   - raw/code-research-karpathy-autoresearch-2026-04-15.md
   - raw/code-research-karpathy-autoresearch-2026-04-14.md
-source_count: 7
+  - raw/arxiv-org-pdf-2604-15034.md
+  - raw/langchain-com-blog-improving-deep-agents-with-harness-engineering.md
+  - raw/garrytan-2046876981711769720.md
+  - raw/garrytan-2044479509874020852.md
+source_count: 11
 status: draft
-last_compiled: 2026-04-14
+last_compiled: 2026-04-23
 ---
 
 # Autoresearch and Self-Improvement
@@ -186,6 +190,41 @@ The autoresearch design explicitly inverts the conventional relationship between
 
 Running multiple autoresearch instances in parallel is coordinated entirely by naming convention: each instance works on a separate git branch named `autoresearch/mar5-gpu0`, `autoresearch/mar5-gpu1`, etc. There is no code that manages the parallel instances, no shared state store, no lock file, no inter-instance communication protocol. The parallelism protocol is: use a different branch name, run on a different machine or GPU, merge winners manually. This is a git-based multi-agent protocol requiring zero infrastructure beyond git itself. The naming convention provides enough coordination for parallel search over the hypothesis space while remaining trivially simple to implement and debug. [Source: raw/code-research-karpathy-autoresearch-2026-04-14.md]
 
+## The Autogenesis Protocol: Formalizing Self-Evolution
+
+Zhang et al. (NTU, Stanford, City U HK, Princeton, April 2026) published "Autogenesis: A Self-Evolving Agent Protocol" (arXiv:2604.15034), a two-layer protocol architecture that generalizes the autoresearch loop into a protocol-level standard. The paper's framing: "A potential shift from manual prompt engineering to automated protocol engineering." [Source: raw/arxiv-org-pdf-2604-15034.md]
+
+- **Layer 1 (RSPL)** models five entity types as protocol-registered resources — Prompts, Agents, Tools, Environments, Memory. Each resource has explicit state, lifecycle, versioned interfaces, and a binary trainable marker `g ∈ {0,1}` marking whether it's evolvable. Infrastructure services include a version manager with auto-incremented semantic versions enabling rollback and diff, plus a Tracer Module for execution traces.
+- **Layer 2 (SEPL)** defines atomic operators for evolution: **Reflect** (trace → failure hypothesis), **Select** (hypothesis → update proposal), **Improve** (apply mutation), **Evaluate** (score against objective + safety), **Commit** (persist or roll back). [Source: raw/arxiv-org-pdf-2604-15034.md]
+
+A central abstraction is **variable lifting**: projecting heterogeneous resources (prompts, tool code, memory) onto a unified evolvable-variable representation. This homogenizes the interaction surface so the same optimization algorithm (TextGrad, GRPO, Reinforce++) can be applied uniformly. The paper's AUTOGENESIS-AGENT system is evaluated on GPQA, AIME, GAIA, LeetCode and reports consistent improvements over strong baselines. [Source: raw/arxiv-org-pdf-2604-15034.md]
+
+Autogenesis is the formal cousin of Karpathy's autoresearch — same core loop (observe, attribute, propose, verify, commit), but with type-theoretic formalism, version lineage, rollback, and safety constraints. See [Self-Evolving Agents and Skillify](self-evolving-agents.md) for the full treatment including the three complementary patterns (Autogenesis, skillify, LangChain trace-analyzer).
+
+## LangChain's Trace Analyzer: Autoresearch at the Harness Level
+
+LangChain's February 2026 experiment demonstrated the autoresearch loop applied to the *harness* rather than a skill. Their deepagents-cli went from 52.8% to 66.5% on TerminalBench 2.0 — a 13.7-point improvement — without changing the model. The mechanism was a **Trace Analyzer Skill**:
+
+1. Fetch experiment traces from LangSmith.
+2. Spawn parallel error-analysis agents; a main agent synthesizes findings and suggestions.
+3. Aggregate feedback and make targeted changes to the harness (system prompt, tools, middleware). [Source: raw/langchain-com-blog-improving-deep-agents-with-harness-engineering.md]
+
+"This works similarly to boosting — focusing on mistakes from previous runs. A human can be pretty helpful in Step 3 (though not required) to verify and discuss proposed changes. Changes that overfit to a task are bad for generalization and can lead to regressions in other tasks." [Source: raw/langchain-com-blog-improving-deep-agents-with-harness-engineering.md]
+
+The specific harness-level fixes surfaced by trace analysis map directly onto the autoresearch pattern:
+
+- **Hypothesis**: agents don't self-verify → **mutation**: system-prompt guidance on Planning → Build → Verify → Fix, plus PreCompletionChecklistMiddleware → **evaluation**: re-run TerminalBench → score improved.
+- **Hypothesis**: agents lack environment context → **mutation**: LocalContextMiddleware that maps cwd and finds tools on start → **evaluation**: fewer search errors in traces.
+- **Hypothesis**: agents doom-loop on broken approaches → **mutation**: LoopDetectionMiddleware with per-file edit counters → **evaluation**: fewer 10+ edit traces on same file. [Source: raw/langchain-com-blog-improving-deep-agents-with-harness-engineering.md]
+
+## Skillify: Autoresearch as Daily Practice
+
+Garry Tan's "skillify" (April 22, 2026) is autoresearch operationalized as a daily habit, not a batch loop. Every agent failure becomes a permanent structural fix: a SKILL.md contract, deterministic code, unit tests, integration tests, LLM evals, resolver trigger, resolver eval, check-resolvable audit, smoke test, filing rules. "A feature that doesn't pass all ten is not a skill. It's just code that happens to work today." [Source: raw/garrytan-2046876981711769720.md]
+
+Tan's RLM-based resolver self-healing is the most explicit claim of self-improvement at the governance layer. The system observes every task dispatch (which skill fired, which didn't, which tasks had no match) and periodically rewrites the resolver based on observed evidence. "A resolver that learns from its own traffic. That's the endgame for agent governance." Tan notes this is "forward-looking, we haven't fully built it. Claude Code's AutoDream system — memory consolidation during idle time — is a primitive version." [Source: raw/garrytan-2044479509874020852.md]
+
+Full practice details in [Thin Harness, Fat Skills](thin-harness-fat-skills.md) and [Self-Evolving Agents and Skillify](self-evolving-agents.md).
+
 ## Related
 
 - [Practical Best Practices](practical-best-practices.md) -- Handling sycophancy with adversarial agents, iterative improvement philosophy
@@ -195,6 +234,8 @@ Running multiple autoresearch instances in parallel is coordinated entirely by n
 - [Deep Research Agents](deep-research-agents.md) -- deep research as scaled autoresearch, convergence detection, Step-DeepResearch architecture
 - [Agentic Design Patterns](agentic-design-patterns.md) -- Reflection pattern as the theoretical foundation of autoresearch loops
 - [Multi-Agent Reliability](multi-agent-reliability.md) -- adversary-resistant evaluation and credibility scoring for multi-agent self-improvement
+- [Self-Evolving Agents and Skillify](self-evolving-agents.md) -- the cross-cutting treatment of self-evolution including Autogenesis, skillify, resolvers, and LangChain trace-analyzer
+- [Thin Harness, Fat Skills](thin-harness-fat-skills.md) -- skillify's architectural home; resolver self-healing as governance-layer self-improvement
 
 ## Open Questions
 
@@ -211,3 +252,7 @@ Running multiple autoresearch instances in parallel is coordinated entirely by n
 - [raw/arxiv-org-html-2501-09136v4.md](../raw/arxiv-org-html-2501-09136v4.md) -- Singh et al., 2025. Agentic RAG survey: evolution from static RAG to agent-driven retrieval with dynamic query reformulation, sufficiency evaluation, and iterative refinement.
 - [raw/code-research-karpathy-autoresearch-2026-04-15.md](../raw/code-research-karpathy-autoresearch-2026-04-15.md) -- First-hand source code analysis via /kb-code-research skill, Apr 2026. Deep 3-dimension analysis of the actual autoresearch codebase: prose-as-control-flow, git-as-experiment-database, fixed-budget evaluation, structural immutability, meta-learning pattern.
 - [raw/code-research-karpathy-autoresearch-2026-04-14.md](../raw/code-research-karpathy-autoresearch-2026-04-14.md) -- Code research, Apr 2026. Meta-learning framing (progress = better code, not better weights); control inversion (LLM as scheduler/decision engine, Python as worker); multi-instance parallelism by git branch naming convention.
+- [raw/arxiv-org-pdf-2604-15034.md](../raw/arxiv-org-pdf-2604-15034.md) -- Zhang et al. (NTU, Stanford, City U HK, Princeton), Apr 2026. "Autogenesis: A Self-Evolving Agent Protocol" — two-layer protocol (RSPL + SEPL), atomic operators (Reflect/Select/Improve/Evaluate/Commit), variable lifting, evaluated on GPQA/AIME/GAIA/LeetCode.
+- [raw/langchain-com-blog-improving-deep-agents-with-harness-engineering.md](../raw/langchain-com-blog-improving-deep-agents-with-harness-engineering.md) -- Vivek Trivedy, LangChain, Feb 2026. Trace Analyzer Skill: 52.8% → 66.5% on TerminalBench 2.0 via harness-only tuning; boosting-like iteration loop; specific middleware fixes surfaced by trace analysis.
+- [raw/garrytan-2046876981711769720.md](../raw/garrytan-2046876981711769720.md) -- Garry Tan, Apr 22, 2026. Skillify as autoresearch-as-daily-practice; 10-step failure-to-skill checklist.
+- [raw/garrytan-2044479509874020852.md](../raw/garrytan-2044479509874020852.md) -- Garry Tan, Apr 15, 2026. RLM-based resolver self-healing as governance-layer self-improvement; AutoDream as primitive version.

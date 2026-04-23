@@ -16,12 +16,24 @@ sources:
   - raw/idoubicc-2039006326882546141.md
   - raw/code-research-claude-code-2026-04-15.md
   - raw/code-research-claude-code-2026-04-14.md
-source_count: 7
+  - raw/arxiv-org-html-2604-14228.md
+  - raw/akshay_pachaar-2045404494641733962.md
+source_count: 9
 status: draft
-last_compiled: 2026-04-15
+last_compiled: 2026-04-23
 ---
 
 Claude Code is Anthropic's coding agent and one of the most extensively analyzed agent harnesses in production. After Anthropic accidentally shipped the entire source code to the npm registry on March 31, 2026 (512,000 lines across 55 directories and 331 modules), the community performed deep architectural analysis. [Source: raw/rohit4verse-2041548810804211936.md] The design reflects a consistent philosophy: keep the harness simple, give the model control, and let the scaffolding shrink as models improve. Claude Code is built on the Claude Agent SDK.
+
+## The 1.6% / 98.4% Finding
+
+A UCL/MBZUAI research team (Liu, Zhao, Shang, Shen, 2026) published "Dive into Claude Code: The Design Space of Today's and Future AI Agent Systems" (arXiv:2604.14228), a source-level analysis of v2.1.88. Their empirical summary of the harness's shape: **"The core of the system is a simple while-loop that calls the model, runs tools, and repeats. Most of the code, however, lives in the systems around this loop: a permission system with seven modes and an ML-based classifier, a five-layer compaction pipeline for context management, four extensibility mechanisms (MCP, plugins, skills, and hooks), a subagent delegation and orchestration mechanism, and append-oriented session storage."** [Source: raw/arxiv-org-html-2604-14228.md]
+
+Akshay Pachaar's synthesis of the paper surfaces the headline number: **only 1.6% of the codebase is AI decision logic; the other 98.4% is operational infrastructure.** Anthropic gives the model maximum decision latitude inside a rich deterministic harness and invests all its engineering effort in that harness. This inverts the pattern most agent frameworks follow — LangGraph routes model outputs through explicit state machines, Devin bolts heavy planners onto operational scaffolding, while Claude Code bets that as frontier models converge on raw capability, the quality of the harness becomes the differentiator. [Source: raw/akshay_pachaar-2045404494641733962.md]
+
+The paper also identifies five human values that motivate the architecture (human decision authority, safety and security, reliable execution, capability amplification, contextual adaptability) and traces them through 13 design principles to specific implementation choices. Anthropic's internal survey of 132 engineers reports that about **27% of Claude Code-assisted tasks were work that would not have been attempted without the tool**, suggesting the architecture enables qualitatively new workflows rather than merely accelerating existing ones. [Source: raw/arxiv-org-html-2604-14228.md]
+
+A design tension flagged by the paper's authors: "While the Claude Code agent system substantially amplifies the short-term capabilities of programmers and end users, it offers limited mechanisms that explicitly support long-term human improvement, deeper understanding, and sustained codebase coherence." [Source: raw/arxiv-org-html-2604-14228.md]
 
 ## The Core Loop
 
@@ -284,6 +296,8 @@ Several principles emerge from Claude Code's architecture:
 - [Agent Memory and Context Management](agent-memory-and-context-management.md) -- the multi-level memory hierarchy and compaction strategies built into Claude Code
 - [Practical Best Practices](practical-best-practices.md) -- actionable practices derived from Claude Code's design patterns
 - [Tool Design Patterns](tool-design-patterns.md) -- Claude Code's ~18 primitive tools, action space design, and the thin-harness-fat-skills philosophy
+- [Thin Harness, Fat Skills](thin-harness-fat-skills.md) -- the architecture thesis that the UCL/MBZUAI 1.6%/98.4% finding validates; also the Cursor 3.0 reverse-engineering finding that Cursor Agent is a rebranded Claude Code
+- [Self-Evolving Agents and Skillify](self-evolving-agents.md) -- AutoDream memory consolidation as a primitive of self-healing memory; description-field resolver built into every skill
 
 ## Open Questions
 
@@ -302,3 +316,5 @@ Several principles emerge from Claude Code's architecture:
 - [raw/idoubicc-2039006326882546141.md](../raw/idoubicc-2039006326882546141.md) -- Idoubi (@idoubicc), Mar 2026. Open-agent-sdk: open-source Claude Code logic extraction for cloud-scale agent deployment.
 - [raw/code-research-claude-code-2026-04-15.md](../raw/code-research-claude-code-2026-04-15.md) -- First-hand source code analysis via /kb-code-research skill, Apr 2026 (re-run). Deep analysis: imperative loop architecture, 5 memory systems, 6-layer compaction cascade, 50+ tools with deferred loading, 4 multi-agent modes (including Fork), permission denial circuit breaker, asymmetric tool clearing, prompt cache-first design.
 - [raw/code-research-claude-code-2026-04-14.md](../raw/code-research-claude-code-2026-04-14.md) -- First-hand source code analysis via /kb-code-research skill, Apr 2026 (original run). Recovered findings: output token recovery loop (MAX_OUTPUT_TOKENS_RECOVERY_LIMIT=3), assembleToolPool() cache optimization via built-in/MCP split, two-tier tool result budget (50K per-result + 200K aggregate), coordinator mode restricted tier with "Never delegate understanding" principle, auto-background escalation at 120s.
+- [raw/arxiv-org-html-2604-14228.md](../raw/arxiv-org-html-2604-14228.md) -- Liu, Zhao, Shang, Shen (VILA Lab, MBZUAI & UCL), Apr 2026. "Dive into Claude Code" -- source-level architectural analysis identifying 5 human values, 13 design principles, 7-component high-level structure, 5-layer subsystem architecture, comparison with OpenClaw.
+- [raw/akshay_pachaar-2045404494641733962.md](../raw/akshay_pachaar-2045404494641733962.md) -- Akshay Pachaar, Apr 18, 2026. Public-facing summary of the UCL/MBZUAI paper; source of the 1.6%/98.4% framing.

@@ -25,9 +25,12 @@ sources:
   - raw/code-research-666ghj-mirofish-2026-04-15.md
   - raw/code-research-claude-code-2026-04-14.md
   - raw/code-research-openclaw-openclaw-2026-04-14.md
-source_count: 14
+  - raw/akshay_pachaar-2043745099792953508.md
+  - raw/hwchase17-2042978500567609738.md
+  - raw/garrytan-2043198780800197025.md
+source_count: 17
 status: draft
-last_compiled: 2026-04-15
+last_compiled: 2026-04-23
 ---
 
 # Agent Memory and Context Management
@@ -39,6 +42,20 @@ Memory is not an optional plugin for an agent harness -- it is the harness itsel
 Sarah Wooders (Letta CTO) frames memory's role bluntly: "Asking to plug memory into an agent harness is like asking to plug driving into a car." [Source: raw/sarahwooders-2040121230473457921.md] Memory is not an integration to bolt on after the fact. It is the mechanism by which an agent maintains coherence across turns, sessions, and tasks. Wooders argues that the harness makes many invisible decisions that an external plugin cannot control: how AGENTS.md or CLAUDE.md files are loaded into context, what survives compaction, whether interactions are stored and made queryable, and how filesystem information is exposed. [Source: raw/sarahwooders-2040121230473457921.md]
 
 This framing has practical consequences. If memory is core, then the harness must own decisions about what enters context, what gets evicted, and what gets persisted -- rather than delegating those decisions to a third-party memory service with its own abstractions and failure modes.
+
+### Chase: "Your Harness, Your Memory"
+
+Harrison Chase's April 2026 essay "Your harness, your memory" extended Wooders's point into a political argument about lock-in. Memory is just a form of context, and harnesses control context. If you use a closed harness — especially one behind a proprietary API — you are yielding ownership of your agent's memory to a third party. Chase's three degrees of lock-in, worst to best:
+
+- **Worst:** Whole harness (including long-term memory) behind an API. Anthropic's Claude Managed Agents puts literally everything behind an API.
+- **Bad:** Closed harness (Claude Agent SDK uses Claude Code under the hood, which is not open source). Memory interactions are unknown and non-transferable.
+- **Mildly bad:** Stateful APIs (OpenAI Responses API, Anthropic server-side compaction). Can't swap models mid-thread. [Source: raw/hwchase17-2042978500567609738.md]
+
+Chase identifies the invisible decisions Wooders flagged and adds more: Can the agent modify its own system instructions? What survives compaction, and what's lost? How is memory metadata presented to the agent? Even Codex, though open-source, generates encrypted compaction summaries unusable outside OpenAI's ecosystem. "Model providers are incredibly incentivized [to move memory behind APIs], and they are starting to." [Source: raw/hwchase17-2042978500567609738.md]
+
+### Tan's Counterpoint: "Memory Is Markdown"
+
+Garry Tan responded the same day: **"If your memory dies when your harness dies, you built the harness too thick. Memory is markdown. Skills are markdown. Brain is a git repo. The harness is a thin conductor — it reads the files, it doesn't own them."** [Source: raw/garrytan-2043198780800197025.md] Tan's position: the substrate for open memory already exists (AGENTS.md, CLAUDE.md, skills files, brain-as-git-repo), and any harness that hoards state in opaque internal structures is structurally wrong. See [Thin Harness, Fat Skills](thin-harness-fat-skills.md) for the full debate including Chase's "directionally correct" concession a day later.
 
 ## The MemGPT Memory Hierarchy
 
@@ -118,6 +135,57 @@ The filesystem-as-communication-channel pattern has broader implications for mul
 ### Long-Horizon Conversation Management
 
 For agents running research sessions that consume 15x the tokens of a standard chat turn, a pattern has emerged: summarize completed phases into external storage, then spawn fresh subagents with clean contexts for subsequent phases. This prevents the progressive degradation that occurs as a context window fills with completed work that is no longer relevant to the current phase. Each subagent starts with a clean context containing only the plan and the specific task, not the full history of all prior work. [Source: raw/anthropic-com-engineering-multi-agent-research-system.md]
+
+## The Cognitive-Science Frame: Why "More Context" Doesn't Solve Memory
+
+Akshay Pachaar's "Build Agents that never forget" (April 2026) makes the case against treating raw context length as a memory substitute. The 128K/200K/1M token windows feel like they should solve everything. They don't. **Accuracy drops over 30% when relevant information sits in the middle of a long context** (the "lost in the middle" effect). Context is a shared budget: system prompts, retrieved docs, conversation history, and output all fight for the same tokens. "Memory isn't about cramming more text into the prompt. It's about structuring what the agent remembers so it can find what matters." [Source: raw/akshay_pachaar-2043745099792953508.md]
+
+Pachaar catalogs seven failure modes that appear the instant you skip real memory: context amnesia, zero personalization, multi-step task failure, repeated mistakes, no knowledge accumulation, hallucination from gaps, identity collapse. [Source: raw/akshay_pachaar-2043745099792953508.md]
+
+The cognitive-science framing he adopts (originally Lilian Weng's 2023 formulation) maps directly onto agent architecture:
+
+- **Sensory memory** (raw perceptual input, sub-second) → tool output streams the agent may or may not attend to.
+- **Working memory** (7±2 items, active thinking, Miller 1956) → the context window itself.
+- **Long-term memory** (durable, no practical capacity limit, retrieval is the bottleneck) → external stores.
+
+Long-term memory further splits into **episodic** (specific past events: "on Tuesday, the PostgreSQL cluster went down"), **semantic** (facts and concepts: "PostgreSQL is a relational database"), and **procedural** (skills and workflows: "when a user asks for a refund, first check the purchase date"). The bridge between episodic and semantic is **memory consolidation** — repeated specific events distilling into general knowledge. Without consolidation, an agent replays individual events rather than learning from them. [Source: raw/akshay_pachaar-2043745099792953508.md]
+
+## The Four-Layer Memory Evolution
+
+Pachaar walks through the evolution of agent memory by showing what breaks at each layer:
+
+1. **No memory (stateless)** — "I have 4 apples... I ate one, how many left?" fails. Each call exists in isolation.
+2. **Python list (in-memory conversation history)** — multi-turn works because history re-ships with every call. Breaks when the list hits the context ceiling (~turn 200) or the process dies.
+3. **Markdown files (persistence)** — Claude Code's CLAUDE.md/MEMORY.md pattern. Restart-safe. Editable. Breaks at scale: 2,000 extracted facts across 200 conversation logs = 500K+ tokens on disk, 128K window. Keyword search is too brittle for synonyms/paraphrases.
+4. **Vector search (embeddings)** — solves synonym problem. Breaks on multi-hop questions: "Was Alice's project affected by Tuesday's outage?" requires bridging three facts ("Alice owns Project Atlas," "Project Atlas uses PostgreSQL," "PostgreSQL outage Tuesday"). Vector search can't see the connective tissue because the bridge fact mentions neither Alice nor Tuesday. "Each fact is an isolated point in embedding space." [Source: raw/akshay_pachaar-2043745099792953508.md]
+
+Pachaar notes that OpenClaw has reportedly seen this failure mode in practice: markdown checkpoint files work at small scale but earlier facts "quietly slip away as context accumulates and gets compacted. The storage is there. The retrieval isn't." [Source: raw/akshay_pachaar-2043745099792953508.md]
+
+## Cognee: The Three-Store Architecture
+
+Cognee is an open-source knowledge engine (pip install cognee) built as a unified solution for the four-layer problem. The design combines three storage paradigms under one engine with four async API calls:
+
+- **Relational store (default SQLite, prod Postgres)** captures *provenance* — where data came from, when it was ingested, access control.
+- **Vector store (default LanceDB, prod Qdrant/Pinecone/pgvector)** captures *semantics* — what content means, what it's similar to.
+- **Graph store (default Kuzu, prod Neo4j/FalkorDB/Neptune)** captures *relationships* — how entities connect, what causes what, who reports to whom. [Source: raw/akshay_pachaar-2043745099792953508.md]
+
+"Flatten any of these and you lose information that matters for retrieval accuracy." The core trick: every graph node has a corresponding embedding. You enter through vectors (find semantically similar content) and exit through the graph (follow relationships to connected entities), or vice versa. This is what makes multi-hop queries work without sacrificing semantic search. [Source: raw/akshay_pachaar-2043745099792953508.md]
+
+### `cognify()`: The Ingestion Pipeline
+
+Cognee's `cognee.cognify()` runs a six-stage pipeline: document classification, permission checking, chunk extraction (paragraph-respecting, not fixed-size), entity and relationship extraction via LLM with automatic deduplication through content hashing, summary generation, and dual indexing into both the vector store and graph store. The deduplication step is load-bearing: "If the same entity shows up across 50 documents, Cognee merges it into a single graph node with 50 inbound edges. Your agent no longer sees 'Alice' as 50 different strangers." The pipeline is incremental — only new or updated files get reprocessed. [Source: raw/akshay_pachaar-2043745099792953508.md]
+
+### `memify()`: RL-Inspired Optimization
+
+`memify()` is what Pachaar argues separates Cognee from "ingest and search" tools. It runs an RL-inspired optimization pass over the graph: strengthens useful paths that led to good retrieval, prunes stale nodes that haven't been touched, auto-tunes edge weights based on real usage, and adds derived facts by identifying implicit relationships. "A customer support agent's graph naturally strengthens paths through product docs and refund policies while letting rarely-queried HR edges decay. The graph develops its own sense of relevance over time." [Source: raw/akshay_pachaar-2043745099792953508.md]
+
+Cognee ships **14 search modes** (not enumerated in the source) and supports multi-tenancy at the graph level — per-dataset permissions for read/write/delete/share, rather than namespace separation. [Source: raw/akshay_pachaar-2043745099792953508.md]
+
+### When to Use Cognee vs. Flat Memory
+
+Pachaar's decision rule: "If your queries only need similarity search ('find conversations like this one'), vector-only memory works. The moment queries cross entity boundaries ('Was Alice's project affected by Tuesday's outage?'), you need graph traversal." Teams that wire together separate vector + graph + relational stores themselves typically burn weeks on infrastructure for a memory layer that still doesn't learn from its own usage. [Source: raw/akshay_pachaar-2043745099792953508.md]
+
+This provides an explicit counterpoint to Tan's markdown-is-enough position: Pachaar argues markdown works fine until the first multi-hop business question, at which point you need the graph layer. Tan's implicit counter is that skills and resolvers encode enough relational structure for most workflows; the graph problem only dominates when you're building a general-purpose brain over thousands of documents. Both views likely hold in their native regimes.
 
 ## The Critique of Markdown-as-Database
 
@@ -220,6 +288,8 @@ If the harness summarizes away a critical constraint ("the client requires Pytho
 - [Autoresearch and Self-Improvement](autoresearch-and-self-improvement.md) -- git-as-state-machine and results.tsv as memory patterns in autonomous research loops
 - [Long-Running Agent Harnesses](long-running-agent-harnesses.md) -- OpenHands event-driven loop and OpenCode while(true) loop with DB as authority
 - [Tool Design Patterns](tool-design-patterns.md) -- OpenCode fuzzy edit cascade and OpenHands security-risk-as-parameter
+- [Thin Harness, Fat Skills](thin-harness-fat-skills.md) -- the Chase-Tan memory-ownership debate: closed-harness lock-in vs. "memory is markdown, brain is a git repo"
+- [Self-Evolving Agents and Skillify](self-evolving-agents.md) -- memory as a first-class evolvable resource (Autogenesis RSPL); resolvers and skillify as self-healing memory patterns
 
 ## Open Questions
 
@@ -243,3 +313,6 @@ If the harness summarizes away a critical constraint ("the client requires Pytho
 - [raw/code-research-666ghj-mirofish-2026-04-15.md](../raw/code-research-666ghj-mirofish-2026-04-15.md) -- Code research, Apr 2026. MiroFish's Zep graph edges with valid_at/invalid_at/expired_at timestamps, PanoramaResult separating active_facts from historical_facts for time-aware reasoning.
 - [raw/code-research-claude-code-2026-04-14.md](../raw/code-research-claude-code-2026-04-14.md) -- Code research, Apr 2026. MEMORY.md 200-line index cap in memdir design; no project-level autoMemoryDirectory override as defense-in-depth security for memory paths.
 - [raw/code-research-openclaw-openclaw-2026-04-14.md](../raw/code-research-openclaw-openclaw-2026-04-14.md) -- Code research, Apr 2026. Temporal decay + MMR reranking in hybrid vector search; plugin-extensible memory via registerMemoryCapability(); daily memory files labeled as untrusted context.
+- [raw/akshay_pachaar-2043745099792953508.md](../raw/akshay_pachaar-2043745099792953508.md) -- Akshay Pachaar, Apr 13, 2026. "Build Agents that never forget" -- seven failure modes without real memory, cognitive-science frame (sensory/working/long-term, episodic/semantic/procedural), four-layer evolution (none → list → markdown → vectors), introduction of Cognee's three-store architecture (relational + vector + graph), `memify()` RL-inspired graph optimization, 14 search modes.
+- [raw/hwchase17-2042978500567609738.md](../raw/hwchase17-2042978500567609738.md) -- Harrison Chase, Apr 11, 2026. "Your harness, your memory" -- three degrees of memory lock-in (stateful API, closed harness, whole-harness-behind-API), Anthropic's Claude Managed Agents as worst case.
+- [raw/garrytan-2043198780800197025.md](../raw/garrytan-2043198780800197025.md) -- Garry Tan, Apr 11, 2026. "If your memory dies when your harness dies, you built the harness too thick. Memory is markdown. Brain is a git repo."

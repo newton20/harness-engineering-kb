@@ -41,11 +41,17 @@ tags: [harness, claude-code, codex]  # optional
 The ingest script handles:
 - **x.com URLs (regular tweets)** → ScrapeCreators API returns tweet text, media, and metadata. If text is URL-only or <100 chars, treats as X Article and falls through the article chain below.
 - **x.com URLs (X Articles)** → Authoritative chain, tried in order:
-  1. **X API v2** `GET /2/tweets/{id}` with `tweet.fields=article,note_tweet` + `expansions=author_id` → reads `article.plain_text` (authoritative, no hallucination). Recorded as `source_method: x_api_v2_article_plain_text`.
-  2. **xAI Grok** with `x_search` tool → last resort only; can hallucinate on recent articles not in training data or x_search index. Recorded as `source_method: xai_grok_fallback`.
+  1. **X API v2** `GET /2/tweets/{id}` with `tweet.fields=article,note_tweet` + `expansions=author_id`:
+     - If `article.plain_text` is present → use it (X Article long-form). Recorded as `source_method: x_api_v2_article_plain_text`.
+     - Else if `note_tweet.text` is present → use it (long regular tweet beyond 280 chars, authoritative full text). Recorded as `source_method: x_api_v2_note_tweet_text`.
+  2. **xAI Grok** with `x_search` tool → last resort only; can hallucinate on recent articles not in training data or x_search index (observed: one April 2026 article returned ~60% fabricated content vs. the authoritative X API v2 version). Recorded as `source_method: xai_grok_fallback`.
 
   The ScrapeCreators-outright-failure path (e.g. HTTP 402 quota) also falls through the same X API → Grok chain.
 - **github.com URLs** → Fetches README.md automatically.
+- **PDF URLs** (`*.pdf` or `arxiv.org/pdf/<id>`) → Two-stage chain:
+  1. For arxiv `/pdf/<id>` URLs, first try the HTML alternative at `arxiv.org/html/<id>` (cleaner, smaller, no layout artifacts). Recorded as `fetch_method: arxiv_html_alt`.
+  2. Otherwise (or on HTML 404), download the PDF and run `pdftotext <file> -` from poppler-utils / xpdf. Uses reading-order mode (no `-layout`) because `-layout` interleaves columns on 2-column academic PDFs. Recorded as `fetch_method: pdftotext`.
+  Requires `pdftotext` on PATH — Git-for-Windows bundles it at `C:\Program Files\Git\mingw64\bin\pdftotext.exe`; macOS `brew install poppler`; Ubuntu `apt install poppler-utils`.
 - **Other web URLs** → Fetches HTML, strips tags, saves as article/paper. Fallback chain for blocked sites:
   1. Direct HTTPS fetch (works for most sites).
   2. `agent-browser --headed` (solves Cloudflare challenges via real browser).

@@ -12,12 +12,17 @@ sources:
   - raw/Hxlfed14-2028116431876116660.md
   - raw/garrytan-2042925773300908103.md
   - raw/hwchase17-2040467997022884194.md
+  - raw/hwchase17-2042978500567609738.md
   - raw/rohit4verse-2041548810804211936.md
   - raw/simonwillison-net-2025-sep-30-designing-agentic-loops.md
   - raw/machinelearningmastery-com-the-roadmap-to-mastering-agentic-ai-design-patterns.md
-source_count: 7
+  - raw/akshay_pachaar-2041146899319971922.md
+  - raw/akshay_pachaar-2045404494641733962.md
+  - raw/langchain-com-blog-improving-deep-agents-with-harness-engineering.md
+  - raw/arxiv-org-html-2604-14228.md
+source_count: 12
 status: draft
-last_compiled: 2026-04-13
+last_compiled: 2026-04-23
 ---
 
 Harness engineering is the discipline of configuring, extending, and structuring the integration points of an existing AI agent to maximize its effectiveness for a particular task or team. The term was coined by @dexhorthy in a November 4, 2025 thread on X, where he observed that the people getting dramatically better outcomes from coding agents were not using better models -- they were engineering the wrapper around the model more effectively. [Source: raw/Hxlfed14-2028116431876116660.md] The concept has since been validated by benchmark evidence, independent practitioners, and both Anthropic and OpenAI, establishing it as one of the central organizing ideas in AI agent development.
@@ -27,6 +32,12 @@ Harness engineering is the discipline of configuring, extending, and structuring
 In dexhorthy's original formulation, harness engineering is distinct from context engineering. Context engineering concerns how context -- long or short, agentic or not -- is passed to an LLM to get the best results, and is primarily about agent design and construction. Harness engineering concerns how a user or team configures, extends, and instruments an existing agent to maximize its effectiveness. As dexhorthy clarified: "No, context engineering was all about agent design and construction. This is about how you *use* the agent." [Source: raw/Hxlfed14-2028116431876116660.md]
 
 Harrison Chase (@hwchase17) of LangChain provided the sharpest distinction between frameworks and harnesses: "A framework is abstractions... pretty unopinionated. Harnesses are batteries included." [Source: raw/Hxlfed14-2028116431876116660.md]
+
+Akshay Pachaar's April 2026 synthesis "The Anatomy of an Agent Harness" offers the cleanest working definition by building up through three concentric rings: **prompt engineering** crafts the instructions the model receives; **context engineering** manages what the model sees and when; **harness engineering** encompasses both, plus orchestration, tool execution, state persistence, error recovery, verification loops, safety enforcement, and lifecycle management. "The harness is not a wrapper around a prompt. It is the complete system that makes autonomous agent behavior possible." [Source: raw/akshay_pachaar-2041146899319971922.md] Pachaar also cites LangChain's Vivek Trivedy with the canonical formula: **"If you're not the model, you're the harness."** [Source: raw/akshay_pachaar-2041146899319971922.md]
+
+### The Von Neumann Analogy
+
+Beren Millidge's 2023 essay "Scaffolded LLMs as Natural Language Computers" is the architectural antecedent that best explains why harness engineering became a distinct discipline. A raw LLM is a CPU with no RAM, no disk, and no I/O. The context window serves as RAM (fast, limited). External databases function as disk storage (large, slow). Tool integrations act as device drivers. **The harness is the operating system.** As Millidge wrote: "We have reinvented the Von Neumann architecture" because it's a natural abstraction for any computing system. [Source: raw/akshay_pachaar-2041146899319971922.md]
 
 ### Precursor: "Designing Agentic Loops" (Sep 2025)
 
@@ -66,8 +77,29 @@ Himanshu (@Hxlfed14) crystallized the argument with cross-company data in a wide
 - **Cursor's lazy tool loading**: 46.9% token reduction in A/B testing (statistically significant). [Source: raw/Hxlfed14-2028116431876116660.md]
 - **Vercel**: Deleted 80% of their agent's tools and watched it go from failing tasks to completing them. Tokens dropped from 145,463 to 67,483, steps from 100 to 19, latency from 724 to 141 seconds. [Source: raw/Hxlfed14-2028116431876116660.md]
 - **SWE-Agent (Princeton NLP)**: 64% relative improvement on SWE-bench by changing nothing but the interface design. Same GPT-4. Same tasks. [Source: raw/rohit4verse-2041548810804211936.md]
+- **LangChain's deepagents-cli (direct measurement)**: LangChain's own post documents the TerminalBench 2.0 run in detail. Using GPT-5.2-Codex fixed, they moved 52.8% → 66.5% by tuning only system prompt, tools, and middleware. The biggest wins came from a build-verify loop guidance, a PreCompletionChecklistMiddleware that intercepts exit for verification, a LocalContextMiddleware that maps cwd at agent start, a LoopDetectionMiddleware that breaks doom-loops after N edits to the same file, and an "xhigh-high-xhigh" reasoning sandwich (high reasoning during planning and verification, moderate during implementation). [Source: raw/langchain-com-blog-improving-deep-agents-with-harness-engineering.md]
+- **Claude Code dissection (UCL/MBZUAI, arXiv:2604.14228)**: After analyzing the leaked Claude Code v2.1.88 source, Liu et al. found the core agent loop is a `while-true` cycle with state management. "Most of the code, however, lives in the systems around this loop: a permission system with seven modes and an ML-based classifier, a five-layer compaction pipeline for context management, four extensibility mechanisms (MCP, plugins, skills, and hooks), a subagent delegation and orchestration mechanism, and append-oriented session storage." Akshay Pachaar's summary: **only 1.6% of the Claude Code codebase is AI decision logic; the other 98.4% is operational infrastructure.** The model reasons; the harness does everything else. [Source: raw/arxiv-org-html-2604-14228.md] [Source: raw/akshay_pachaar-2045404494641733962.md]
 
 As Himanshu put it: "The model is the engine. The harness is the car. Nobody buys an engine." [Source: raw/Hxlfed14-2028116431876116660.md]
+
+## The 12 Components of a Production Harness
+
+Pachaar's synthesis across Anthropic, OpenAI, LangChain, CrewAI, AutoGen, and LangGraph identifies 12 distinct components in a production agent harness:
+
+1. **Orchestration loop** — the Thought-Action-Observation (ReAct) heartbeat. Anthropic describes theirs as a "dumb loop" where all intelligence lives in the model.
+2. **Tools** — schemas injected into the LLM's context plus registration, validation, sandboxed execution, result capture, and formatting.
+3. **Memory** — operates at multiple timescales. Short-term (conversation history). Long-term (CLAUDE.md, MEMORY.md, LangGraph Stores, OpenAI Sessions).
+4. **Context management** — the single most common failure site. Compaction, observation masking, just-in-time retrieval, sub-agent delegation.
+5. **Prompt construction** — hierarchical assembly: system prompt, tool definitions, memory files, conversation history, current message. OpenAI Codex uses a strict priority stack.
+6. **Output parsing** — native tool calling preferred over regex parsing; legacy RetryWithErrorOutputParser remains for edge cases.
+7. **State management** — LangGraph models state as typed dicts flowing through graph nodes with reducers; OpenAI offers four mutually exclusive strategies; Claude Code uses git commits as checkpoints.
+8. **Error handling** — transient (retry with backoff), LLM-recoverable (return as ToolMessage so the model can adjust), user-fixable (interrupt), unexpected (bubble up).
+9. **Guardrails and safety** — OpenAI's tiered input/output/tool guardrails with tripwire halting; Anthropic's ~40 discrete tool capabilities gated independently.
+10. **Verification loops** — rules-based (tests, linters), visual (Playwright screenshots), LLM-as-judge. Boris Cherny: "giving the model a way to verify its work improves quality by 2 to 3x."
+11. **Subagent orchestration** — Fork (byte-identical parent context), Teammate (file-based mailbox), Worktree (isolated git worktree), agents-as-tools, handoffs, nested state graphs.
+12. **(Not explicitly numbered but implied across the article) Persistence and lifecycle** — how state survives across sessions, how old artifacts get compacted or discarded. [Source: raw/akshay_pachaar-2041146899319971922.md]
+
+Pachaar also identifies **seven decisions that define every harness**: single-agent vs. multi-agent, ReAct vs. plan-and-execute, context-window management strategy, verification loop design, permission architecture, tool scoping strategy, and harness thickness. [Source: raw/akshay_pachaar-2041146899319971922.md] See [Thin Harness, Fat Skills](thin-harness-fat-skills.md) for the architectural debate around decision #7.
 
 ## Thin Harness, Fat Skills
 
@@ -115,6 +147,8 @@ Dex Horthy (creator of "12 Factor Agents") puts the threshold at 40% of the mode
 ## Related
 
 - [Claude Code Architecture](claude-code-architecture.md) -- the most analyzed production harness
+- [Thin Harness, Fat Skills](thin-harness-fat-skills.md) -- the architecture thesis (Tan) and the Chase-Tan memory-ownership debate, with the Cursor 3.0 validation
+- [Self-Evolving Agents and Skillify](self-evolving-agents.md) -- Autogenesis protocol, skillify 10-step practice, LangChain trace-analyzer skill
 - [Long-Running Agent Harnesses](long-running-agent-harnesses.md) -- multi-session patterns that extend harness engineering across context windows
 - [OpenAI Codex Harness](openai-codex-harness.md) -- the zero-hand-written-code case study
 - [Auto Mode and Safety](auto-mode-and-safety.md) -- harness-level safety via classifiers
@@ -141,3 +175,8 @@ Dex Horthy (creator of "12 Factor Agents") puts the threshold at 40% of the mode
 - [raw/rohit4verse-2041548810804211936.md](../raw/rohit4verse-2041548810804211936.md) -- Rohit (@rohit4verse), Apr 2026. Four-layer model derived from Claude Code source analysis.
 - [raw/simonwillison-net-2025-sep-30-designing-agentic-loops.md](../raw/simonwillison-net-2025-sep-30-designing-agentic-loops.md) -- Simon Willison, Sep 2025. "Designing agentic loops" as a precursor framing to harness engineering, defining the skill of designing tools and loops for agents. YOLO mode risks, shell commands over MCP, tightly scoped credentials.
 - [raw/machinelearningmastery-com-the-roadmap-to-mastering-agentic-ai-design-patterns.md](../raw/machinelearningmastery-com-the-roadmap-to-mastering-agentic-ai-design-patterns.md) -- Machine Learning Mastery, 2025. Five core agentic design patterns (ReAct, Reflection, Tool Use, Planning, Multi-Agent) as architectural vocabulary. "Start with the problem, not the pattern."
+- [raw/akshay_pachaar-2041146899319971922.md](../raw/akshay_pachaar-2041146899319971922.md) -- Akshay Pachaar, Apr 2026. "The Anatomy of an Agent Harness" -- 12-component synthesis, Von Neumann analogy, 7 architectural decisions, framework-by-framework comparison.
+- [raw/akshay_pachaar-2045404494641733962.md](../raw/akshay_pachaar-2045404494641733962.md) -- Akshay Pachaar, Apr 2026. Summary of UCL/MBZUAI Claude Code dissection -- the 1.6%/98.4% model-vs-infrastructure split.
+- [raw/langchain-com-blog-improving-deep-agents-with-harness-engineering.md](../raw/langchain-com-blog-improving-deep-agents-with-harness-engineering.md) -- Vivek Trivedy, LangChain, Feb 2026. deepagents-cli from 52.8% to 66.5% on TerminalBench 2.0 via harness-only tuning.
+- [raw/hwchase17-2042978500567609738.md](../raw/hwchase17-2042978500567609738.md) -- Harrison Chase, Apr 2026. "Your harness, your memory" -- the memory-ownership argument that anchors the Chase-Tan debate.
+- [raw/arxiv-org-html-2604-14228.md](../raw/arxiv-org-html-2604-14228.md) -- Liu et al. (VILA Lab, MBZUAI & UCL), Apr 2026. "Dive into Claude Code: The Design Space of Today's and Future AI Agent Systems" -- source-level analysis, 5 human values, 13 design principles, 7-component structure, 5-layer subsystem architecture.

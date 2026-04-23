@@ -18,9 +18,11 @@ sources:
   - raw/code-research-openclaw-openclaw-2026-04-15.md
   - raw/code-research-all-hands-ai-openhands-2026-04-15.md
   - raw/code-research-anomalyco-opencode-2026-04-15.md
-source_count: 9
+  - raw/langchain-com-blog-improving-deep-agents-with-harness-engineering.md
+  - raw/walden_yan-2047054401341370639.md
+source_count: 11
 status: draft
-last_compiled: 2026-04-15
+last_compiled: 2026-04-23
 ---
 
 Complex software projects cannot be completed within a single context window. Building agents that work effectively across multiple context windows -- spanning hours or days of autonomous operation -- requires deliberate harness design that solves for state handoff, incremental progress, and quality evaluation. Anthropic published two major research posts on this problem (November 2025 and March 2026), each introducing distinct architectural patterns, while the open-source community has developed complementary approaches to persistent learning across agent runs.
@@ -211,6 +213,30 @@ OpenCode implements a code-controlled `while(true)` ReAct loop with five distinc
 
 OpenHands and OpenCode represent two distinct approaches to making agent sessions durable across interruptions. OpenHands serializes non-history agent state as pickle-base64 (suitable for arbitrary Python objects) and stores each event as an individual JSON file in a file-backed event store; on restore, the event log is replayed to reconstruct history. OpenCode uses SQLite/Drizzle for structured session and message data, JSON sidecar files for tool outputs and attachments, and git snapshots after each step — providing full time-travel revert capability. Both architectures share a key invariant: the durable store is the authority, and in-memory history is always rebuilt from it rather than being the primary record. This rebuild-from-store pattern makes sessions resumable after crashes, process restarts, or hardware failures without requiring explicit checkpoint coordination. [Source: raw/code-research-all-hands-ai-openhands-2026-04-15.md] [Source: raw/code-research-anomalyco-opencode-2026-04-15.md]
 
+## Solution 8: LangChain Middleware for Long-Horizon Tasks
+
+LangChain's February 2026 deepagents-cli experiment on TerminalBench 2.0 produced a concrete set of middleware patterns for extending single-session agent focus across long tasks, even when the task fits (in principle) in one context window. These patterns can be reused in genuinely multi-session contexts. The biggest wins:
+
+- **PreCompletionChecklistMiddleware (Ralph Wiggum loop)** — intercepts the agent before it exits and forces a verification pass against the task spec. The most common failure mode Trace Analyzer caught was an agent writing a solution, re-reading its own code, confirming it looks OK, and stopping without testing. The middleware blocks exit until verification runs. [Source: raw/langchain-com-blog-improving-deep-agents-with-harness-engineering.md]
+- **LocalContextMiddleware** — runs on agent start to map cwd, parent/child directories, and run bash commands to find tools (Python installs, linters). "Context discovery and search are error-prone; injecting context reduces this error surface and helps onboard the agent into its environment."
+- **LoopDetectionMiddleware** — tracks per-file edit counts via tool-call hooks. After N edits to the same file, injects "…consider reconsidering your approach" into context. Catches doom loops (10+ small variations on the same broken approach seen in traces).
+- **Time budgeting injections** — explicit warnings pushing the agent toward verification when approaching a timeout. "Agents are famously bad at time estimation."
+- **Reasoning sandwich (xhigh-high-xhigh)** — high reasoning during planning and verification, moderate during implementation. xhigh throughout scored 53.9% (too many timeouts); the sandwich pushed 52.8% → 66.5%. [Source: raw/langchain-com-blog-improving-deep-agents-with-harness-engineering.md]
+
+The middleware contribution is orthogonal to Anthropic's Initializer+Coder pattern. Anthropic solves *inter-session* continuity through file-based handoff. LangChain's middleware solves *intra-session* focus loss — an agent that has drifted, looped, or declared false completion inside a single long-running session. Production long-running agents typically need both.
+
+## Map-Reduce-and-Manage: Multi-PR Delegation at Cognition
+
+Walden Yan's April 2026 retrospective reports that Devin now supports multi-PR delegation — a manager Devin breaks a larger task into pieces, spawns child Devins, and coordinates progress through an internal MCP. This extends long-running harnesses from single-session work spanning hours to multi-session work spanning weeks (a feature migration across a dozen services, a product feature that spans 10 PRs). [Source: raw/walden_yan-2047054401341370639.md]
+
+Getting this coherent took more context engineering than Cognition expected. The failure modes that emerged:
+
+- **Managers over-prescribe.** Models trained on small-scoped delegation default to being overly prescriptive, which backfires when the manager lacks deep codebase context. Fix: train managers on higher-scope delegation.
+- **False state-sharing.** Agents assume they share state with their children when they don't. Fix: dedicated work on context transfer prompts.
+- **No spontaneous cross-agent communication.** A sub-agent writing messages back to its manager to be passed to other agents in the team doesn't happen by default, because models weren't trained in environments where it needed to.
+
+Cognition's explicit rejection of unstructured swarms: "**Unstructured-swarm approach — arbitrary networks of agents negotiating with each other — is mostly a distraction. The practical shape is map-reduce-and-manage: a manager splits work, children execute, the manager synthesizes and reports back.**" [Source: raw/walden_yan-2047054401341370639.md] See [Multi-Agent Reliability](multi-agent-reliability.md) for the full write-up of the patterns Cognition has deployed.
+
 ## Lessons
 
 - Decomposing work into tractable chunks and using structured artifacts to hand off context between sessions are the two core load-bearing patterns for long-running agents. [Source: raw/anthropic-com-engineering-effective-harnesses-for-long-running-agents.md]
@@ -229,6 +255,8 @@ OpenHands and OpenCode represent two distinct approaches to making agent session
 - [Deep Research Agents](deep-research-agents.md) -- orchestrator-worker patterns, convergence detection, and economics of long-running research sessions
 - [Agentic Design Patterns](agentic-design-patterns.md) -- ReAct, Reflection, Planning, Tool Use, Multi-Agent as foundational patterns underlying these architectures
 - [Multi-Agent Reliability](multi-agent-reliability.md) -- credibility scoring and adversary-resistant coordination for multi-agent systems
+- [Thin Harness, Fat Skills](thin-harness-fat-skills.md) -- resolvers and skillify as continuity patterns across sessions; the 10-step skill checklist as durable documentation
+- [Self-Evolving Agents and Skillify](self-evolving-agents.md) -- trace-analyzer skills and Autogenesis-style version lineage as continuity substrates
 
 ## Open Questions
 
@@ -247,3 +275,5 @@ OpenHands and OpenCode represent two distinct approaches to making agent session
 - [raw/code-research-all-hands-ai-openhands-2026-04-15.md](../raw/code-research-all-hands-ai-openhands-2026-04-15.md) -- Code research, Apr 2026. Event-driven callback loop, pending action gate, 5 termination conditions, pickle-base64 session state, file-backed event store, V0 deprecation.
 - [raw/code-research-anomalyco-opencode-2026-04-15.md](../raw/code-research-anomalyco-opencode-2026-04-15.md) -- Code research, Apr 2026. while(true) with 5 termination paths, max-steps via synthetic assistant prefill, compaction-as-named-agent, SQLite/git-backed session persistence, DB as single source of truth.
 - [raw/code-research-openclaw-openclaw-2026-04-15.md](../raw/code-research-openclaw-openclaw-2026-04-15.md) -- Code research, Apr 2026 (re-run). Compaction as distributed transaction with 7-step protocol and 25 checkpoints, identifier preservation in summarization, post-compaction AGENTS.md re-injection with date resolution.
+- [raw/langchain-com-blog-improving-deep-agents-with-harness-engineering.md](../raw/langchain-com-blog-improving-deep-agents-with-harness-engineering.md) -- Vivek Trivedy, LangChain, Feb 2026. deepagents-cli 52.8% → 66.5% on TerminalBench 2.0 via PreCompletionChecklistMiddleware (Ralph Wiggum loop), LocalContextMiddleware, LoopDetectionMiddleware, time budgeting, xhigh-high-xhigh reasoning sandwich.
+- [raw/walden_yan-2047054401341370639.md](../raw/walden_yan-2047054401341370639.md) -- Walden Yan (Cognition), Apr 22, 2026. Map-reduce-and-manage for multi-PR delegation; failure modes of over-prescriptive managers and assumed state-sharing; rejection of unstructured swarms.
