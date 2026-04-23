@@ -1,12 +1,12 @@
 ---
 title: "Knowledge Base Index"
 type: index
-generated: 2026-04-16
+generated: 2026-04-23
 ---
 
 # Knowledge Base Index
 
-**13 articles** | Last generated: 2026-04-16
+**15 articles** | Last generated: 2026-04-23
 
 ## Articles
 
@@ -24,6 +24,8 @@ generated: 2026-04-16
 - **[Multi-Agent Reliability and Adversary Resistance](multi-agent-reliability.md)** — Multi-agent systems amplify the capabilities of individual LLM agents, but they also amplify failure modes. A single compromised, malfunctioning, or p...
 - **[OpenAI Codex Harness](openai-codex-harness.md)** — OpenAI's Codex team published two foundational articles on harness engineering in early 2026, documenting their experience building a real product wit...
 - **[Practical Best Practices](practical-best-practices.md)** — This article collects concrete, actionable practices for harness engineering -- the kind of hard-won lessons that emerge from building and shipping ag...
+- **[Self-Evolving Agents and Skillify](self-evolving-agents.md)** — Self-evolving agents are systems that improve their own prompts, tools, memory, and workflows based on observed performance — without a human manually...
+- **[Thin Harness, Fat Skills](thin-harness-fat-skills.md)** — "Thin harness, fat skills" is a three-tier agent architecture articulated by Garry Tan (YC President/CEO) in April 2026 after studying Anthropic's acc...
 - **[Tool Design Patterns](tool-design-patterns.md)** — The tools available to an agent -- its action space -- are one of the most consequential design decisions in harness engineering. The accumulated evid...
 - **[What Is Harness Engineering?](what-is-harness-engineering.md)** — Harness engineering is the discipline of configuring, extending, and structuring the integration points of an existing AI agent to maximize its effect...
 
@@ -45,6 +47,9 @@ generated: 2026-04-16
 ### agent-first-development
 - [OpenAI Codex Harness](openai-codex-harness.md)
 
+### agent-protocol
+- [Self-Evolving Agents and Skillify](self-evolving-agents.md)
+
 ### agentic-rag
 - [Agentic Design Patterns](agentic-design-patterns.md)
 
@@ -57,6 +62,9 @@ generated: 2026-04-16
 ### autocontext
 - [Autoresearch and Self-Improvement](autoresearch-and-self-improvement.md)
 - [Long-Running Agent Harnesses](long-running-agent-harnesses.md)
+
+### autogenesis
+- [Self-Evolving Agents and Skillify](self-evolving-agents.md)
 
 ### automated-optimization
 - [Autoresearch and Self-Improvement](autoresearch-and-self-improvement.md)
@@ -113,6 +121,12 @@ generated: 2026-04-16
 - [Autoresearch and Self-Improvement](autoresearch-and-self-improvement.md)
 - [Multi-Agent Reliability and Adversary Resistance](multi-agent-reliability.md)
 
+### fat-code
+- [Thin Harness, Fat Skills](thin-harness-fat-skills.md)
+
+### fat-skills
+- [Thin Harness, Fat Skills](thin-harness-fat-skills.md)
+
 ### filesystem
 - [Agent Memory and Context Management](agent-memory-and-context-management.md)
 
@@ -129,6 +143,7 @@ generated: 2026-04-16
 ### harness-engineering
 - [OpenAI Codex Harness](openai-codex-harness.md)
 - [Practical Best Practices](practical-best-practices.md)
+- [Thin Harness, Fat Skills](thin-harness-fat-skills.md)
 - [What Is Harness Engineering?](what-is-harness-engineering.md)
 
 ### infrastructure
@@ -139,6 +154,9 @@ generated: 2026-04-16
 
 ### letta
 - [Agent Memory and Context Management](agent-memory-and-context-management.md)
+
+### lifecycle
+- [Self-Evolving Agents and Skillify](self-evolving-agents.md)
 
 ### long-running-agents
 - [Long-Running Agent Harnesses](long-running-agent-harnesses.md)
@@ -151,6 +169,9 @@ generated: 2026-04-16
 
 ### memory
 - [Agent Memory and Context Management](agent-memory-and-context-management.md)
+
+### memory-ownership
+- [Thin Harness, Fat Skills](thin-harness-fat-skills.md)
 
 ### model-generations
 - [Practical Best Practices](practical-best-practices.md)
@@ -199,23 +220,47 @@ generated: 2026-04-16
 ### reliability
 - [Multi-Agent Reliability and Adversary Resistance](multi-agent-reliability.md)
 
+### resolvers
+- [Self-Evolving Agents and Skillify](self-evolving-agents.md)
+- [Thin Harness, Fat Skills](thin-harness-fat-skills.md)
+
+### rollback
+- [Self-Evolving Agents and Skillify](self-evolving-agents.md)
+
 ### safety
 - [Auto Mode and Safety](auto-mode-and-safety.md)
 
 ### search-reason-loops
 - [Deep Research Agents](deep-research-agents.md)
 
+### self-evolution
+- [Self-Evolving Agents and Skillify](self-evolving-agents.md)
+
 ### self-improvement
 - [Autoresearch and Self-Improvement](autoresearch-and-self-improvement.md)
 
 ### skill-refinement
 - [Autoresearch and Self-Improvement](autoresearch-and-self-improvement.md)
+- [Self-Evolving Agents and Skillify](self-evolving-agents.md)
+
+### skillify
+- [Self-Evolving Agents and Skillify](self-evolving-agents.md)
+- [Thin Harness, Fat Skills](thin-harness-fat-skills.md)
+
+### skills
+- [Thin Harness, Fat Skills](thin-harness-fat-skills.md)
 
 ### sycophancy
 - [Practical Best Practices](practical-best-practices.md)
 
 ### testing
 - [Practical Best Practices](practical-best-practices.md)
+
+### thin-harness
+- [Thin Harness, Fat Skills](thin-harness-fat-skills.md)
+
+### three-tier-architecture
+- [Thin Harness, Fat Skills](thin-harness-fat-skills.md)
 
 ### tool-design
 - [Claude Code Architecture](claude-code-architecture.md)
@@ -232,4 +277,7 @@ generated: 2026-04-16
 
 ### uncategorized
 - [Lint Report 2026-04-13](lint-report-2026-04-13.md)
+
+### version-lineage
+- [Self-Evolving Agents and Skillify](self-evolving-agents.md)
 

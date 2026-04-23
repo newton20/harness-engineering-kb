@@ -16,9 +16,10 @@ sources:
   - raw/code-research-anomalyco-opencode-2026-04-15.md
   - raw/code-research-openclaw-openclaw-2026-04-14.md
   - raw/code-research-claude-code-2026-04-14.md
-source_count: 8
+  - raw/walden_yan-2047054401341370639.md
+source_count: 9
 status: draft
-last_compiled: 2026-04-15
+last_compiled: 2026-04-23
 ---
 
 # Multi-Agent Reliability and Adversary Resistance
@@ -139,6 +140,57 @@ OpenClaw's `spawn` operation returns `{status: "accepted"}` immediately with no 
 
 Claude Code's coordinator (orchestrator) prompt contains an explicit prohibition on delegating synthesis tasks to subagents. The principle, stated directly in the prompt, is "Never Delegate Understanding": the coordinator must itself synthesize, analyze, and reason about results -- these cognitive steps cannot be handed off to a subagent that does not share the coordinator's full context. The prompt further mandates that instructions to subagents must be self-contained, including specific file paths and line numbers rather than vague references that require the subagent to infer context. This addresses the game-of-telephone anti-pattern where each relay through an intermediate agent risks information loss, summarization artifacts, and context-dependent references that become ambiguous when the receiving agent lacks the original context. [Source: raw/code-research-claude-code-2026-04-14.md]
 
+## Walden Yan (Cognition): "Writes Stay Single-Threaded"
+
+Walden Yan's April 2026 "Multi-Agents: What's Actually Working" is a deliberate retrospective on Cognition's 2025 post "Don't Build Multi-Agents." The original argument: parallel agents make implicit choices about style, edge cases, and code patterns that conflict with each other, leading to fragile products. That observation still holds for parallel-*writer* swarms — "most of the sexy ideas in that space still don't see meaningful adoption." But Cognition has identified a narrower class of patterns that do work. **The through-line: multi-agent systems work best today when writes stay single-threaded and additional agents contribute *intelligence* rather than actions.** [Source: raw/walden_yan-2047054401341370639.md]
+
+### Pattern 1: The Clean-Context Code-Review Loop
+
+Devin Review (a separate review agent invoked on every Devin PR) catches an average of **2 bugs per PR, of which ~58% are severe** (logic errors, missing edge cases, security vulnerabilities). The system iterates through multiple review cycles, finding new bugs each cycle. [Source: raw/walden_yan-2047054401341370639.md]
+
+The counterintuitive finding: **the pattern works best when the coding and review agents do not share any context beforehand.** Yan's justification is part philosophical, part technical:
+
+- Agents are not egos; they're systems that perform based on their context. Two instances of the same model don't self-bias the way a single human doing both tasks would.
+- The clean-context review agent is forced to reason backward from implementation without the spec, so it can openly question assumptions the original agent inherited from instructions (e.g., a user specifying an insecure pattern).
+- **The math of attention matters most.** Context Rot is well-documented — models make less intelligent decisions at longer context lengths. When the coding agent has been working for hours (reading the repo, running commands, fixing errors), its context is huge. The dedicated review agent skips that extraneous context, looks only at the diff, and re-discovers what it needs. Shorter context → more attention capacity → better detection of nuanced issues. [Source: raw/walden_yan-2047054401341370639.md]
+
+The final load-bearing piece: the communication bridge back from the review agent to the coding agent must let the coder "properly use its broader context of user instructions, decisions, etc. to filter the bugs that come back." Without this, the system loops, disobeys the user, and does out-of-scope work. [Source: raw/walden_yan-2047054401341370639.md]
+
+**Takeaway:** Clean context + generator-verifier loop = notable capability improvement. But clear synthesis back to the overall context is what makes the experience cohesive.
+
+### Pattern 2: "Smart Friend" — Cross-Model Delegation
+
+With the return of large models (Opus-class) and the arrival of the Mythos class, frontier intelligence will soon be too expensive and slow for most day-to-day tasks. Windsurf's SWE-1.5 (950 tok/sec sub-frontier model) was paired with Sonnet 4.5 for planning via a "smart friend" tool the primary model could invoke. [Source: raw/walden_yan-2047054401341370639.md]
+
+The architecture inverts the usual orchestrator-worker pattern: rather than a smart primary delegating to smaller subagents, the **smaller primary decides when to consult the smarter model**. Two engineering problems emerge:
+
+1. **How does the weaker model know it's at its limits?** This is fundamentally a calibration problem for a model that isn't the smartest. Solutions: always make at least one call per task; prompt-tune or train the primary to be more calibrated; prescribe domain-specific trigger rules (always invoke smart friend for merge conflicts).
+2. **What context should the primary share?** Yan reports the 80/20 answer for today's models: share a fork of the full primary context with the smart model; encourage broad questions ("what should I do?") and let the smart model decide what's interesting.
+
+The counter-direction also matters: the smart model needs to know not to make up theories when the primary hasn't shown it a relevant file — it should instead specifically instruct the primary to investigate that file and ask again. "Over-scoped" smart friends (suggesting important guidance the primary didn't ask for) produced more interesting interactions. [Source: raw/walden_yan-2047054401341370639.md]
+
+### What Actually Happened with SWE-1.5
+
+Yan is explicit that SWE-1.5 was **not good enough** as the primary for this setup. The gap from Sonnet 4.5 was too wide in exactly the places that mattered — knowing when to escalate, knowing what to ask. SWE-1.6 (Opus-4.5-level on SWE-bench) closes enough of that gap that the pattern starts to pay off, but "it's still not where we want it. We're reasonably confident this is a training problem, and future SWE models will be trained with this back-and-forth in mind." [Source: raw/walden_yan-2047054401341370639.md]
+
+Where the pattern does work well: **across frontier models.** Running Claude and GPT together in this setup produced real gains. The interesting shift: cross-frontier communication is less about a weaker model knowing when to ask a stronger one, and more about routing to whichever model is best at the specific sub-task. "The delegation logic becomes a capability router rather than a difficulty escalator." [Source: raw/walden_yan-2047054401341370639.md]
+
+### Higher-Level Delegation: Map-Reduce-and-Manage
+
+Devin supports a manager Devin breaking a larger task into pieces, spawning child Devins, and coordinating their progress through an internal MCP. Getting this coherent took more context engineering than Cognition expected:
+
+- Managers trained on small-scoped delegation default to being overly prescriptive, which backfires when the manager lacks deep codebase context.
+- Agents assume they share state with their children when they don't.
+- Cross-agent communication (sub-agent writing messages back to its manager to pass to sibling agents) doesn't happen by default because models haven't been trained in environments where it needed to.
+
+Cognition's take: **"Unstructured swarms — arbitrary networks of agents negotiating with each other — is mostly a distraction. The practical shape is map-reduce-and-manage: a manager splits work, children execute, the manager synthesizes and reports back."** [Source: raw/walden_yan-2047054401341370639.md]
+
+### The Unifying Rule
+
+"The open problems are all communication problems": how a weaker model learns when to escalate, how a child surfaces a discovery that should change its siblings' work, how to transfer context between agents without drowning the receiver. You can get decently far with prompting, but Cognition expects next-generation models (including the ones they train themselves) to close these gaps in training. [Source: raw/walden_yan-2047054401341370639.md]
+
+The Walden Yan rule for 2026: **multi-agent works when writes are single-threaded and the additional agents contribute intelligence, not actions.** A clean-context reviewer catches bugs the coder can't see. A frontier-level smart friend catches subtleties a weaker primary misses. A manager coordinates scope across child agents without fragmenting decisions.
+
 ## Combining Defenses
 
 No single defense mechanism is sufficient. A robust multi-agent system combines multiple layers:
@@ -162,12 +214,16 @@ The defense-in-depth approach reflects a fundamental reality: multi-agent system
 - [raw/code-research-anomalyco-opencode-2026-04-15.md](../raw/code-research-anomalyco-opencode-2026-04-15.md) — Code research, Apr 2026. Mode-typed agent registry (primary/subagent/all), permission inheritance with scoped denial, resumable subagent sessions via task_id.
 - [raw/code-research-openclaw-openclaw-2026-04-14.md](../raw/code-research-openclaw-openclaw-2026-04-14.md) — Code research, Apr 2026. Announce queue batching with summarize drop policy (cap 20); depth-bounded role assignment (main/orchestrator/leaf); fire-and-forget spawning with push-based result delivery.
 - [raw/code-research-claude-code-2026-04-14.md](../raw/code-research-claude-code-2026-04-14.md) — Code research, Apr 2026. "Never Delegate Understanding" principle in coordinator prompt; mandate for self-contained subagent instructions with specific file paths and line numbers.
+- [raw/walden_yan-2047054401341370639.md](../raw/walden_yan-2047054401341370639.md) — Walden Yan (Cognition), Apr 22, 2026. "Multi-Agents: What's Actually Working" — 10-month retrospective on Cognition's 2025 "Don't Build Multi-Agents" post. Devin Review catches 2 bugs/PR, ~58% severe. Clean-context generator-verifier loop. Smart Friend cross-model delegation. Map-reduce-and-manage as practical higher-level pattern. "Writes stay single-threaded" as unifying rule.
 
 ## Related
 
 - [Deep Research Agents](deep-research-agents.md) — Multi-agent research architecture where these reliability patterns are applied
 - [Auto Mode and Safety](auto-mode-and-safety.md) — Safety classifiers and permission systems that complement adversary resistance
 - [Practical Best Practices](practical-best-practices.md) — Evaluation approaches and production deployment guidance
+- [Thin Harness, Fat Skills](thin-harness-fat-skills.md) — Cognition's Devin Review as an example of the generator-verifier pattern
+- [Self-Evolving Agents and Skillify](self-evolving-agents.md) — LangChain's trace-analyzer skill as a harness-level analog of Devin Review
+- [Long-Running Agent Harnesses](long-running-agent-harnesses.md) — Map-reduce-and-manage as the practical shape for multi-session delegation
 
 ## Open Questions
 

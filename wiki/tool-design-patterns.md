@@ -26,9 +26,12 @@ sources:
   - raw/code-research-666ghj-mirofish-2026-04-15.md
   - raw/code-research-claude-code-2026-04-14.md
   - raw/code-research-openclaw-openclaw-2026-04-14.md
-source_count: 15
+  - raw/jasonkneen-2043435856849940818.md
+  - raw/jasonkneen-cursor-3.0-gist.md
+  - raw/garrytan-2043565174066475472.md
+source_count: 18
 status: draft
-last_compiled: 2026-04-15
+last_compiled: 2026-04-23
 ---
 
 # Tool Design Patterns
@@ -92,6 +95,12 @@ The anti-pattern is a fat harness with thin skills: "40+ tool definitions eating
 What you want instead is purpose-built tooling that is fast and narrow. Tan gives a concrete example: a Playwright CLI that does each browser operation in 100 milliseconds versus a Chrome MCP that takes 15 seconds for screenshot-find-click-wait-read -- 75x faster. [Source: raw/garrytan-2042925773300908103.md]
 
 The three-layer architecture: fat skills on top (markdown procedures encoding judgment), a thin CLI harness in the middle (JSON in, text out), and deterministic application tooling on the bottom (QueryDB, ReadDoc, Search, Timeline). Push intelligence up into skills, push execution down into deterministic tooling, keep the harness thin. [Source: raw/garrytan-2042925773300908103.md]
+
+## Validation at Scale: Cursor 3.0 Ships Claude Code as Its Harness
+
+On April 12, 2026, Jason Kneen reverse-engineered Cursor 3.0 and reported that Cursor Agent — the flagship product of a ~$10B company — is a rebranded Claude Code. Cursor runs a local proxy that find-and-replaces "Claude" → "Cursor" in system prompts and messages, bundles `@anthropic-ai/claude-agent-sdk` and `@anthropic-ai/claude-code` as dependencies, and serves a custom fine-tune labeled `claude-3.7-sonnet-finetuned-cursor-20250514-v1`. [Source: raw/jasonkneen-2043435856849940818.md] [Source: raw/jasonkneen-cursor-3.0-gist.md]
+
+Garry Tan's three-word response captured the tool-design implication: **"Thin harness fat skill confirmed."** [Source: raw/garrytan-2043565174066475472.md] Cursor, presumably with resources to build any tool stack it wanted, chose the thinnest possible approach — rent Anthropic's harness + SDK + tool primitives, differentiate only on the fine-tuned model and the IDE surface. The finding operationalizes the thin-harness thesis at commercial scale: the tool layer is a commodity worth outsourcing; the differentiation layers are the model and the surface. See [Thin Harness, Fat Skills](thin-harness-fat-skills.md) for the full debate including the memory-ownership cost of this strategy.
 
 ## Primitives Over Integrations
 
@@ -281,6 +290,8 @@ The accumulated wisdom on tool design converges on several principles:
 - [Agentic Design Patterns](agentic-design-patterns.md) -- Tool Use as one of the five core agentic design patterns
 - [Multi-Agent Reliability](multi-agent-reliability.md) -- how tool selection interacts with credibility scoring in adversarial multi-agent settings
 - [Autoresearch and Self-Improvement](autoresearch-and-self-improvement.md) -- prose-as-schema and deterministic tool sequences in autonomous research loops
+- [Thin Harness, Fat Skills](thin-harness-fat-skills.md) -- Cursor 3.0 ships Claude Code as its tool layer; three-tier architecture with fat deterministic code at the bottom
+- [Self-Evolving Agents and Skillify](self-evolving-agents.md) -- LangChain middleware patterns (PreCompletionChecklist, LocalContext, LoopDetection) that extend the tool surface
 
 ## Open Questions
 
@@ -307,3 +318,6 @@ The accumulated wisdom on tool design converges on several principles:
 - [raw/code-research-666ghj-mirofish-2026-04-15.md](../raw/code-research-666ghj-mirofish-2026-04-15.md) -- Code research, Apr 2026. Minimum tool-call enforcement (3-call floor, 5-call ceiling, unused-tool hints), plugin security scanning with mtime-keyed cache.
 - [raw/code-research-claude-code-2026-04-14.md](../raw/code-research-claude-code-2026-04-14.md) -- Code research, Apr 2026 (original run). Recovered findings: buildTool() fail-closed factory enforcement, deferred tool schema persistence via message history scanning, assembleToolPool() cache-breakpoint ordering.
 - [raw/code-research-openclaw-openclaw-2026-04-14.md](../raw/code-research-openclaw-openclaw-2026-04-14.md) -- Code research, Apr 2026 (original run). Recovered findings: TypeBox write-once/run-anywhere schema approach, 4-level tool name normalization with loop guard, head+tail truncation with 30% tail budget for error preservation, 4-stage tool policy pipeline (profile → provider → agent → group).
+- [raw/jasonkneen-2043435856849940818.md](../raw/jasonkneen-2043435856849940818.md) -- Jason Kneen, Apr 12, 2026. Cursor 3.0 reverse-engineering: "Cursor Agent is a rebranded Claude Code" running behind a local find-and-replace proxy bundling `@anthropic-ai/claude-agent-sdk` + `@anthropic-ai/claude-code` with a custom Claude fine-tune.
+- [raw/jasonkneen-cursor-3.0-gist.md](../raw/jasonkneen-cursor-3.0-gist.md) -- Jason Kneen, Apr 12, 2026. Full reverse-engineering report summary (via linked tweet).
+- [raw/garrytan-2043565174066475472.md](../raw/garrytan-2043565174066475472.md) -- Garry Tan, Apr 12, 2026. "Thin harness fat skill confirmed" response to Kneen's finding.
